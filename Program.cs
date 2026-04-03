@@ -52,6 +52,9 @@ builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<EscaladeService>();
 builder.Services.AddScoped<AuthService>();
 
+builder.Services.AddScoped<StatsService>();
+builder.Services.AddScoped<ExportService>();
+
 builder.Services.AddHangfire(config =>
     config.UseSqlServerStorage(
         builder.Configuration.GetConnectionString("DefaultConnection")));
