@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using NSwag.AspNetCore;
+using APM.API.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -40,6 +41,7 @@ builder.Services.AddOpenApiDocument(config =>
     config.Version = "v1";
     config.Description = "Système de gestion des plans d'action PDCA";
 });
+builder.Services.AddScoped<AuthService>();
 builder.Services.AddControllers();
 
 builder.Services.AddCors(options =>
