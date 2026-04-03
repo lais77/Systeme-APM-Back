@@ -1,31 +1,47 @@
 using APM.API.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using NSwag.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Connexion à la base de données
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(
         builder.Configuration.GetConnectionString("DefaultConnection")
     )
 );
 
-// 2. Swagger
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
+builder.Services.AddAuthentication(options =>
 {
-    c.SwaggerDoc("v1", new()
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
     {
-        Title = "APM API — TIS Circuits",
-        Version = "v1",
-        Description = "Système de gestion des plans d'action PDCA"
-    });
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = builder.Configuration["JwtSettings:Issuer"],
+        ValidAudience = builder.Configuration["JwtSettings:Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(
+            Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:SecretKey"]!))
+    };
 });
 
-// 3. Contrôleurs
+builder.Services.AddAuthorization();
+builder.Services.AddOpenApiDocument(config =>
+{
+    config.Title = "APM API — TIS Circuits";
+    config.Version = "v1";
+    config.Description = "Système de gestion des plans d'action PDCA";
+});
 builder.Services.AddControllers();
 
-// 4. CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAngular", policy =>
@@ -38,15 +54,14 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Swagger toujours actif (pas seulement en développement)
-app.UseSwagger();
-app.UseSwaggerUI(c =>
+app.UseOpenApi();
+app.UseSwaggerUi(c =>
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "APM API v1");
-    c.RoutePrefix = string.Empty;
+    c.DocumentTitle = "APM API — TIS Circuits";
 });
 
 app.UseCors("AllowAngular");
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
