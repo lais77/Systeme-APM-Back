@@ -19,7 +19,7 @@ namespace APM.API.Services
 
             message.From.Add(new MailboxAddress(
                 _config["EmailSettings:FromName"],
-                _config["EmailSettings:FromEmail"]
+                _config["EmailSettings:FromEmail"] ?? "apm@fallback.com"
             ));
 
             message.To.Add(new MailboxAddress(toName, toEmail));

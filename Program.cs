@@ -41,6 +41,15 @@ builder.Services.AddOpenApiDocument(config =>
     config.Title = "APM API — TIS Circuits";
     config.Version = "v1";
     config.Description = "Système de gestion des plans d'action PDCA";
+    config.AddSecurity("JWT", Enumerable.Empty<string>(), new NSwag.OpenApiSecurityScheme
+    {
+        Type = NSwag.OpenApiSecuritySchemeType.ApiKey,
+        Name = "Authorization",
+        In = NSwag.OpenApiSecurityApiKeyLocation.Header,
+        Description = "Entrez : Bearer {votre token}"
+    });
+    config.OperationProcessors.Add(
+        new NSwag.Generation.Processors.Security.OperationSecurityScopeProcessor("JWT"));
 });
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<UserService>();
@@ -54,12 +63,12 @@ builder.Services.AddScoped<AuthService>();
 
 builder.Services.AddScoped<StatsService>();
 builder.Services.AddScoped<ExportService>();
-
+builder.Services.AddScoped<PasswordResetService>();
 builder.Services.AddHangfire(config =>
     config.UseSqlServerStorage(
         builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddHangfireServer();
-
+builder.Services.AddScoped<ActivityLogService>();
 builder.Services.AddControllers();
 
 builder.Services.AddCors(options =>

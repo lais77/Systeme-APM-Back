@@ -11,10 +11,12 @@ namespace APM.API.Controllers
     public class AuthController : ControllerBase
     {
         private readonly AuthService _authService;
+        private readonly PasswordResetService _passwordResetService;
 
-        public AuthController(AuthService authService)
+        public AuthController(AuthService authService, PasswordResetService passwordResetService)
         {
             _authService = authService;
+            _passwordResetService = passwordResetService;
         }
 
         // POST /api/auth/login
@@ -50,6 +52,28 @@ namespace APM.API.Controllers
                 email = email,
                 role = role
             });
+        }
+
+        // POST /api/auth/forgot-password
+        [HttpPost("forgot-password")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
+        {
+            var result = await _passwordResetService.SendResetLinkAsync(dto);
+            // On retourne toujours OK pour ne pas révéler si l'email existe
+            return Ok(new { message = "Si cet email existe, un lien a été envoyé." });
+        }
+
+        // POST /api/auth/reset-password
+        [HttpPost("reset-password")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
+        {
+            var result = await _passwordResetService.ResetPasswordAsync(dto);
+            if (!result)
+                return BadRequest(new { message = "Token invalide ou expiré." });
+
+            return Ok(new { message = "Mot de passe réinitialisé avec succès." });
         }
     }
 }
