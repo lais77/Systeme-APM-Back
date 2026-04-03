@@ -5,6 +5,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using NSwag.AspNetCore;
 using APM.API.Services;
+using Hangfire;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -42,6 +43,20 @@ builder.Services.AddOpenApiDocument(config =>
     config.Description = "Système de gestion des plans d'action PDCA";
 });
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<UserService>();
+builder.Services.AddScoped<DepartmentService>();
+builder.Services.AddScoped<TeamService>();
+builder.Services.AddScoped<ProcessService>();
+builder.Services.AddScoped<EmailService>();
+builder.Services.AddScoped<NotificationService>();
+builder.Services.AddScoped<EscaladeService>();
+builder.Services.AddScoped<AuthService>();
+
+builder.Services.AddHangfire(config =>
+    config.UseSqlServerStorage(
+        builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddHangfireServer();
+
 builder.Services.AddControllers();
 
 builder.Services.AddCors(options =>
@@ -55,6 +70,12 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+app.UseHangfireDashboard("/hangfire");
+RecurringJob.AddOrUpdate<EscaladeService>(
+    "escalade-quotidienne",
+    service => service.RunDailyCheckAsync(),
+    Cron.Daily);
 
 app.UseOpenApi();
 app.UseSwaggerUi(c =>
