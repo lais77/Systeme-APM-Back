@@ -34,7 +34,7 @@ namespace APM.API.Controllers
             try
             {
                 var result = await _userService.CreateAsync(dto);
-                return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
+                return CreatedAtAction(nameof(GetById), new { id = result.id }, result);
             }
             catch (InvalidOperationException ex)
             {

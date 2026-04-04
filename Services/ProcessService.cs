@@ -19,10 +19,10 @@ namespace APM.API.Services
             return await _context.Processes
                 .Select(p => new ProcessDto
                 {
-                    Id = p.Id,
-                    Name = p.Name,
-                    Description = p.Description,
-                    IsActive = p.IsActive
+                    id = p.Id,
+                    nom = p.Name,
+                    description = p.Description,
+                    actif = p.IsActive
                 }).ToListAsync();
         }
 
@@ -30,8 +30,8 @@ namespace APM.API.Services
         {
             var process = new Process
             {
-                Name = dto.Name,
-                Description = dto.Description,
+                Name = dto.nom,
+                Description = dto.description,
                 IsActive = true
             };
             _context.Processes.Add(process);
@@ -39,10 +39,10 @@ namespace APM.API.Services
 
             return new ProcessDto
             {
-                Id = process.Id,
-                Name = process.Name,
-                Description = process.Description,
-                IsActive = process.IsActive
+                id = process.Id,
+                nom = process.Name,
+                description = process.Description,
+                actif = process.IsActive
             };
         }
 

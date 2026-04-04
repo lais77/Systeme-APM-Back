@@ -2,22 +2,22 @@ namespace APM.API.DTOs.Admin
 {
     public class ProcessDto
     {
-        public int Id { get; set; }
-        public string Name { get; set; } = string.Empty;
-        public string? Description { get; set; }
-        public bool IsActive { get; set; }
+        public int id { get; set; }
+        public string nom { get; set; } = string.Empty;
+        public string? description { get; set; }
+        public bool actif { get; set; }
     }
 
     public class CreateProcessDto
     {
-        public string Name { get; set; } = string.Empty;
-        public string? Description { get; set; }
+        public string nom { get; set; } = string.Empty;
+        public string? description { get; set; }
     }
 
     public class UpdateProcessDto
     {
-        public string Name { get; set; } = string.Empty;
-        public string? Description { get; set; }
-        public bool IsActive { get; set; }
+        public string nom { get; set; } = string.Empty;
+        public string? description { get; set; }
+        public bool actif { get; set; }
     }
 }

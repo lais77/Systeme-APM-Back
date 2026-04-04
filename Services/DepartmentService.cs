@@ -19,10 +19,10 @@ namespace APM.API.Services
             return await _context.Departments
                 .Select(d => new DepartmentDto
                 {
-                    Id = d.Id,
-                    Name = d.Name,
-                    Description = d.Description,
-                    UserCount = d.Users.Count
+                    id = d.Id,
+                    nom = d.Name,
+                    description = d.Description,
+                    nombreUtilisateurs = d.Users.Count
                 }).ToListAsync();
         }
 
@@ -30,8 +30,8 @@ namespace APM.API.Services
         {
             var dept = new Department
             {
-                Name = dto.Name,
-                Description = dto.Description,
+                Name = dto.nom,
+                Description = dto.description,
                 CreatedAt = DateTime.UtcNow
             };
             _context.Departments.Add(dept);
@@ -39,10 +39,10 @@ namespace APM.API.Services
 
             return new DepartmentDto
             {
-                Id = dept.Id,
-                Name = dept.Name,
-                Description = dept.Description,
-                UserCount = 0
+                id = dept.Id,
+                nom = dept.Name,
+                description = dept.Description,
+                nombreUtilisateurs = 0
             };
         }
 
@@ -51,15 +51,16 @@ namespace APM.API.Services
             var dept = await _context.Departments.FindAsync(id);
             if (dept == null) return null;
 
-            dept.Name = dto.Name;
-            dept.Description = dto.Description;
+            dept.Name = dto.nom;
+            dept.Description = dto.description;
             await _context.SaveChangesAsync();
 
             return new DepartmentDto
             {
-                Id = dept.Id,
-                Name = dept.Name,
-                Description = dept.Description
+                id = dept.Id,
+                nom = dept.Name,
+                description = dept.Description,
+                nombreUtilisateurs = dept.Users.Count
             };
         }
 

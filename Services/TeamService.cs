@@ -20,11 +20,11 @@ namespace APM.API.Services
                 .Include(t => t.Department)
                 .Select(t => new TeamDto
                 {
-                    Id = t.Id,
-                    Name = t.Name,
-                    DepartmentId = t.DepartmentId,
-                    DepartmentName = t.Department != null ? t.Department.Name : null,
-                    MemberCount = t.Members.Count
+                    id = t.Id,
+                    nom = t.Name,
+                    departementId = t.DepartmentId,
+                    departement = t.Department != null ? t.Department.Name : null,
+                    nombreMembres = t.Members.Count
                 }).ToListAsync();
         }
 
@@ -32,8 +32,8 @@ namespace APM.API.Services
         {
             var team = new Team
             {
-                Name = dto.Name,
-                DepartmentId = dto.DepartmentId,
+                Name = dto.nom,
+                DepartmentId = dto.departementId,
                 CreatedAt = DateTime.UtcNow
             };
             _context.Teams.Add(team);
@@ -41,9 +41,11 @@ namespace APM.API.Services
 
             return new TeamDto
             {
-                Id = team.Id,
-                Name = team.Name,
-                DepartmentId = team.DepartmentId
+                id = team.Id,
+                nom = team.Name,
+                departementId = team.DepartmentId,
+                departement = team.Department != null ? team.Department.Name : null,
+                nombreMembres = team.Members.Count
             };
         }
 
