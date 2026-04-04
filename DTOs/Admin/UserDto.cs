@@ -4,10 +4,13 @@ namespace APM.API.DTOs.Admin
     {
         public int Id { get; set; }
         public string FullName { get; set; } = string.Empty;
+        public string Nom { get; set; } = string.Empty;
+        public string Prenom { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
         public string Role { get; set; } = string.Empty;
         public bool IsActive { get; set; }
-        public string? DepartmentName { get; set; }
+        public bool Actif { get; set; }
+        public string? Department { get; set; }
         public string? TeamName { get; set; }
         public string? ManagerName { get; set; }
         public DateTime CreatedAt { get; set; }

@@ -18,20 +18,14 @@ namespace APM.API.Services
 
         public async Task<TokenResponseDto> LoginAsync(LoginDto dto)
         {
-            Console.WriteLine($"Email reçu: '{dto.Email}'");
-            Console.WriteLine($"Password reçu: '{dto.Password}'");
-
             var user = await _context.Users
                 .Include(u => u.Department)
                 .FirstOrDefaultAsync(u => u.Email == dto.Email && u.IsActive);
-
-            Console.WriteLine($"User trouvé: {(user != null ? "OUI" : "NON")}");
 
             if (user == null)
                 throw new UnauthorizedAccessException("Email ou mot de passe incorrect.");
 
             var bcryptResult = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash);
-            Console.WriteLine($"BCrypt result: {bcryptResult}");
 
             if (!bcryptResult)
                 throw new UnauthorizedAccessException("Email ou mot de passe incorrect.");
