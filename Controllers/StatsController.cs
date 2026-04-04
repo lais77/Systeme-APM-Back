@@ -1,4 +1,5 @@
 using APM.API.Services;
+using APM.API.DTOs.Stats;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -31,5 +32,13 @@ namespace APM.API.Controllers
         [HttpGet("monthly/{year}")]
         public async Task<IActionResult> GetMonthly(int year) =>
             Ok(await _statsService.GetMonthlyStatsAsync(year));
+
+        [HttpPost("by-periode")]
+        public async Task<IActionResult> GetByPeriod([FromBody] StatsByPeriodDto? dto) =>
+            Ok(await _statsService.GetStatsByPeriodAsync(dto?.startDate, dto?.endDate));
+
+        [HttpGet("performance")]
+        public async Task<IActionResult> GetPerformance() =>
+            Ok(await _statsService.GetPerformanceStatsAsync());
     }
 }

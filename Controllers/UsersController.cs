@@ -55,5 +55,12 @@ namespace APM.API.Controllers
             var result = await _userService.DeleteAsync(id);
             return result ? Ok(new { message = "Utilisateur désactivé." }) : NotFound();
         }
+
+        [HttpPatch("{id}/desactiver")]
+        public async Task<IActionResult> Desactiver(int id)
+        {
+            var result = await _userService.DeleteAsync(id);
+            return result ? Ok(new { message = "Utilisateur désactivé." }) : NotFound();
+        }
     }
 }

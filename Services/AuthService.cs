@@ -37,15 +37,15 @@ namespace APM.API.Services
 
             return new TokenResponseDto
             {
-                Token = token,
-                Expiration = expiration,
-                User = new UserProfileDto
+                token = token,
+                expiration = expiration,
+                user = new UserProfileDto
                 {
-                    Id = user.Id,
-                    FullName = user.FullName,
-                    Email = user.Email,
-                    Role = user.Role,
-                    DepartmentName = user.Department?.Name
+                    id = user.Id,
+                    fullName = user.FullName,
+                    email = user.Email,
+                    role = user.Role,
+                    departmentName = user.Department?.Name
                 }
             };
         }

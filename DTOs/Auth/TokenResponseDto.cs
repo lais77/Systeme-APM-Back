@@ -2,17 +2,17 @@ namespace APM.API.DTOs.Auth
 {
     public class TokenResponseDto
     {
-        public string Token { get; set; } = string.Empty;
-        public DateTime Expiration { get; set; }
-        public UserProfileDto User { get; set; } = null!;
+        public string token { get; set; } = string.Empty;
+        public DateTime expiration { get; set; }
+        public UserProfileDto user { get; set; } = null!;
     }
 
     public class UserProfileDto
     {
-        public int Id { get; set; }
-        public string FullName { get; set; } = string.Empty;
-        public string Email { get; set; } = string.Empty;
-        public string Role { get; set; } = string.Empty;
-        public string? DepartmentName { get; set; }
+        public int id { get; set; }
+        public string fullName { get; set; } = string.Empty;
+        public string email { get; set; } = string.Empty;
+        public string role { get; set; } = string.Empty;
+        public string? departmentName { get; set; }
     }
 }

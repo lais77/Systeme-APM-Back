@@ -27,14 +27,14 @@ namespace APM.API.Services
 
             return new GlobalStatsDto
             {
-                TotalPlans = totalPlans,
-                TotalActions = totalActions,
-                ActionsEnCours = enCours,
-                ActionsEnRetard = enRetard,
-                ActionsCloturees = cloturees,
-                TauxRealisation = totalActions > 0 ? Math.Round((double)enCours / totalActions * 100, 1) : 0,
-                TauxCloture = totalActions > 0 ? Math.Round((double)cloturees / totalActions * 100, 1) : 0,
-                TauxEfficacite = cloturees > 0 ? Math.Round((double)efficaces / cloturees * 100, 1) : 0
+                totalPlans = totalPlans,
+                totalActions = totalActions,
+                actionsEnCours = enCours,
+                actionsEnRetard = enRetard,
+                actionsCloturees = cloturees,
+                tauxRealisation = totalActions > 0 ? Math.Round((double)enCours / totalActions * 100, 1) : 0,
+                tauxCloture = totalActions > 0 ? Math.Round((double)cloturees / totalActions * 100, 1) : 0,
+                tauxEfficacite = cloturees > 0 ? Math.Round((double)efficaces / cloturees * 100, 1) : 0
             };
         }
 
@@ -59,11 +59,11 @@ namespace APM.API.Services
 
                 result.Add(new StatsByDepartmentDto
                 {
-                    DepartmentName = d.Name,
-                    TotalPlans = plans.Count,
-                    TotalActions = actions.Count,
-                    ActionsCloturees = cloturees,
-                    TauxCloture = actions.Count > 0
+                    departmentName = d.Name,
+                    totalPlans = plans.Count,
+                    totalActions = actions.Count,
+                    actionsCloturees = cloturees,
+                    tauxCloture = actions.Count > 0
                         ? Math.Round((double)cloturees / actions.Count * 100, 1)
                         : 0
                 });
@@ -78,15 +78,79 @@ namespace APM.API.Services
                 .Where(u => u.Role == "MANAGER")
                 .Select(u => new StatsByPilotDto
                 {
-                    PilotName = u.FullName,
-                    TotalPlans = u.ManagedPlans.Count(),
-                    TotalActions = u.ManagedPlans.SelectMany(p => p.Actions).Count(),
-                    TauxCloture = u.ManagedPlans.SelectMany(p => p.Actions).Count() > 0
+                    pilotName = u.FullName,
+                    totalPlans = u.ManagedPlans.Count(),
+                    totalActions = u.ManagedPlans.SelectMany(p => p.Actions).Count(),
+                    tauxCloture = u.ManagedPlans.SelectMany(p => p.Actions).Count() > 0
                         ? Math.Round((double)u.ManagedPlans.SelectMany(p => p.Actions)
                             .Count(a => a.Status == "Clôturé") /
                             u.ManagedPlans.SelectMany(p => p.Actions).Count() * 100, 1)
                         : 0
                 }).ToListAsync();
+        }
+
+        public async Task<GlobalStatsDto> GetStatsByPeriodAsync(DateTime? startDate, DateTime? endDate)
+        {
+            if (!startDate.HasValue || !endDate.HasValue)
+            {
+                var today = DateTime.UtcNow.Date;
+                startDate = new DateTime(today.Year, today.Month, 1);
+                endDate = today;
+            }
+
+            var start = startDate.Value;
+            var end = endDate.Value;
+            var plans = await _context.ActionPlans
+                .Where(p => p.CreatedAt >= start && p.CreatedAt <= end)
+                .ToListAsync();
+
+            var planIds = plans.Select(p => p.Id).ToList();
+
+            var actions = await _context.ActionItems
+                .Where(a => planIds.Contains(a.ActionPlanId))
+                .ToListAsync();
+
+            var enCours = actions.Count(a => a.Status == "InProgress");
+            var cloturees = actions.Count(a => a.Status == "Clôturé");
+            var enRetard = actions.Count(a => a.Status != "Clôturé" && a.Status != "Annulé" && a.Deadline < end);
+            var efficaces = actions.Count(a => a.Effectiveness == "Efficace");
+
+            return new GlobalStatsDto
+            {
+                totalPlans = plans.Count,
+                totalActions = actions.Count,
+                actionsEnCours = enCours,
+                actionsEnRetard = enRetard,
+                actionsCloturees = cloturees,
+                tauxRealisation = actions.Count > 0 ? Math.Round((double)enCours / actions.Count * 100, 1) : 0,
+                tauxCloture = actions.Count > 0 ? Math.Round((double)cloturees / actions.Count * 100, 1) : 0,
+                tauxEfficacite = cloturees > 0 ? Math.Round((double)efficaces / cloturees * 100, 1) : 0
+            };
+        }
+
+        public async Task<Dictionary<string, double>> GetPerformanceStatsAsync()
+        {
+            var today = DateTime.UtcNow.Date;
+            var totalActions = await _context.ActionItems.CountAsync();
+            var cloturees = await _context.ActionItems.CountAsync(a => a.Status == "Clôturé");
+            var enCours = await _context.ActionItems.CountAsync(a => a.Status == "InProgress");
+            var efficaces = await _context.ActionItems.CountAsync(a => a.Effectiveness == "Efficace");
+            var enRetard = await _context.ActionItems.CountAsync(a =>
+                a.Status != "Clôturé" && a.Status != "Annulé" && a.Deadline.Date < today);
+
+            var totalActionsAvecDeadline = await _context.ActionItems.CountAsync(a => a.Deadline != null);
+            var aTemps = totalActionsAvecDeadline > 0
+                ? await _context.ActionItems.CountAsync(a => a.RealizationDate != null && a.RealizationDate <= a.Deadline)
+                : 0;
+
+            return new Dictionary<string, double>
+            {
+                ["tauxRealisation"] = totalActions > 0 ? Math.Round((double)cloturees / totalActions * 100, 1) : 0,
+                ["tauxEfficacite"] = cloturees > 0 ? Math.Round((double)efficaces / cloturees * 100, 1) : 0,
+                ["tauxRetard"] = totalActions > 0 ? Math.Round((double)enRetard / totalActions * 100, 1) : 0,
+                ["tauxATemps"] = totalActionsAvecDeadline > 0 ? Math.Round((double)aTemps / totalActionsAvecDeadline * 100, 1) : 0,
+                ["actionEnCours"] = enCours
+            };
         }
 
         public async Task<List<MonthlyStatsDto>> GetMonthlyStatsAsync(int year)
@@ -96,14 +160,14 @@ namespace APM.API.Services
 
             return Enumerable.Range(1, 12).Select(month => new MonthlyStatsDto
             {
-                Month = month,
-                Year = year,
-                ActionsCloturees = actions.Count(a =>
+                month = month,
+                year = year,
+                actionsCloturees = actions.Count(a =>
                     a.Status == "Clôturé" &&
                     a.RealizationDate.HasValue &&
                     a.RealizationDate.Value.Month == month &&
                     a.RealizationDate.Value.Year == year),
-                ActionsEnRetard = actions.Count(a =>
+                actionsEnRetard = actions.Count(a =>
                     a.Status != "Clôturé" &&
                     a.Deadline.Month == month &&
                     a.Deadline.Year == year &&
