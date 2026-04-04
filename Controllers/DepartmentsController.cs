@@ -7,7 +7,7 @@ namespace APM.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "ADMIN")]
     public class DepartmentsController : ControllerBase
     {
         private readonly DepartmentService _deptService;

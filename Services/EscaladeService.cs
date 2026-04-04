@@ -73,7 +73,7 @@ namespace APM.API.Services
         private async Task SendEscaladeN3Async(ActionItem action)
         {
             await SendEscaladeN2Async(action);
-            var direction = await _context.Users.FirstOrDefaultAsync(u => u.Role == "Auditeur");
+            var direction = await _context.Users.FirstOrDefaultAsync(u => u.Role == "AUDITEUR");
             if (direction != null)
             {
                 var subject = $"APM — CRITIQUE Retard 72h+ : {action.Theme}";

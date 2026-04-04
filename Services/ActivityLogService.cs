@@ -19,7 +19,7 @@ namespace APM.API.Services
                 UserId = userId ?? 0,
                 Action = action,
                 EntityType = entityType,
-                EntityId = entityId ?? 0,
+                EntityId = entityId,
                 Details = details,
                 CreatedAt = DateTime.UtcNow
             };

@@ -18,27 +18,29 @@ namespace APM.API.Services
 
         public async Task<TokenResponseDto> LoginAsync(LoginDto dto)
         {
-            // 1. Chercher l'utilisateur par email
+            Console.WriteLine($"Email reçu: '{dto.Email}'");
+            Console.WriteLine($"Password reçu: '{dto.Password}'");
+
             var user = await _context.Users
                 .Include(u => u.Department)
                 .FirstOrDefaultAsync(u => u.Email == dto.Email && u.IsActive);
 
-            // 2. Si pas trouvé → erreur
+            Console.WriteLine($"User trouvé: {(user != null ? "OUI" : "NON")}");
+
             if (user == null)
                 throw new UnauthorizedAccessException("Email ou mot de passe incorrect.");
 
-            // 3. Vérifier le mot de passe
-            if (!BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
+            var bcryptResult = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash);
+            Console.WriteLine($"BCrypt result: {bcryptResult}");
+
+            if (!bcryptResult)
                 throw new UnauthorizedAccessException("Email ou mot de passe incorrect.");
 
-            // 4. Générer le token JWT
             var (token, expiration) = _jwtHelper.GenerateToken(user);
 
-            // 5. Mettre à jour la date du dernier login
             user.LastLoginAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
-            // 6. Retourner le résultat
             return new TokenResponseDto
             {
                 Token = token,

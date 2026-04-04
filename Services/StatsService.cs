@@ -75,7 +75,7 @@ namespace APM.API.Services
         public async Task<List<StatsByPilotDto>> GetStatsByPilotAsync()
         {
             return await _context.Users
-                .Where(u => u.Role == "Manager")
+                .Where(u => u.Role == "MANAGER")
                 .Select(u => new StatsByPilotDto
                 {
                     PilotName = u.FullName,

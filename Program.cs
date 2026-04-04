@@ -83,6 +83,9 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// CORS en premier !
+app.UseCors("AllowAngular");
+
 app.UseHangfireDashboard("/hangfire");
 RecurringJob.AddOrUpdate<EscaladeService>(
     "escalade-quotidienne",
@@ -95,9 +98,14 @@ app.UseSwaggerUi(c =>
     c.DocumentTitle = "APM API — TIS Circuits";
 });
 
-app.UseCors("AllowAngular");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await APM.API.Data.DbSeeder.SeedAsync(context);
+}
 
 app.Run();

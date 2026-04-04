@@ -47,7 +47,7 @@ namespace APM.API.Data
                 FullName = "Admin APM",
                 Email = "admin@tiscircuits.com",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"),
-                Role = "Admin",
+                Role = "ADMIN",
                 DepartmentId = deptInfo.Id
             };
 
@@ -56,7 +56,7 @@ namespace APM.API.Data
                 FullName = "Chadli BEDDEY",
                 Email = "chadli@tiscircuits.com",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("Manager@123"),
-                Role = "Manager",
+                Role = "MANAGER",
                 DepartmentId = deptInfo.Id
             };
 
@@ -65,7 +65,7 @@ namespace APM.API.Data
                 FullName = "Ahmed BEN ALI",
                 Email = "ahmed@tiscircuits.com",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("Resp@123"),
-                Role = "Responsable",
+                Role = "RESPONSABLE",
                 DepartmentId = deptInfo.Id
             };
 
@@ -74,7 +74,7 @@ namespace APM.API.Data
                 FullName = "Directeur USINE",
                 Email = "direction@tiscircuits.com",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("Audit@123"),
-                Role = "Auditeur",
+                Role = "AUDITEUR",
                 DepartmentId = deptProd.Id
             };
 
