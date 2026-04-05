@@ -22,17 +22,16 @@ namespace APM.API.Services
                 .Include(u => u.Manager)
                 .Select(u => new UserDto
                 {
-                    id = u.Id,
-                    nom = u.FullName,
-                    prenom = "",
-                    email = u.Email,
-                    role = u.Role,
-                    actif = u.IsActive,
-                    departement = u.Department != null ? u.Department.Name : null,
-                    equipe = u.Team != null ? u.Team.Name : null,
-                    chef = u.Manager != null ? u.Manager.FullName : null,
-                    dateCreation = u.CreatedAt,
-                    dernierLogin = u.LastLoginAt
+                    Id = u.Id,
+                    FullName = u.FullName,
+                    Email = u.Email,
+                    Role = u.Role,
+                    IsActive = u.IsActive,
+                    Departement = u.Department != null ? u.Department.Name : null,
+                    Equipe = u.Team != null ? u.Team.Name : null,
+                    Chef = u.Manager != null ? u.Manager.FullName : null,
+                    CreatedAt = u.CreatedAt,
+                    LastLoginAt = u.LastLoginAt
                 }).ToListAsync();
         }
 
@@ -48,34 +47,33 @@ namespace APM.API.Services
 
             return new UserDto
             {
-                id = u.Id,
-                nom = u.FullName,
-                prenom = "",
-                email = u.Email,
-                role = u.Role,
-                actif = u.IsActive,
-                departement = u.Department?.Name,
-                equipe = u.Team?.Name,
-                chef = u.Manager?.FullName,
-                dateCreation = u.CreatedAt,
-                dernierLogin = u.LastLoginAt
+                Id = u.Id,
+                FullName = u.FullName,
+                Email = u.Email,
+                Role = u.Role,
+                IsActive = u.IsActive,
+                Departement = u.Department?.Name,
+                Equipe = u.Team?.Name,
+                Chef = u.Manager?.FullName,
+                CreatedAt = u.CreatedAt,
+                LastLoginAt = u.LastLoginAt
             };
         }
 
         public async Task<UserDto> CreateAsync(CreateUserDto dto)
         {
-            if (await _context.Users.AnyAsync(u => u.Email == dto.email))
+            if (await _context.Users.AnyAsync(u => u.Email == dto.Email))
                 throw new InvalidOperationException("Email déjà utilisé.");
 
             var user = new User
             {
-                FullName = dto.nom,
-                Email = dto.email,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.password),
-                Role = dto.role,
-                DepartmentId = dto.departementId,
-                TeamId = dto.equipeId,
-                ManagerId = dto.chefId,
+                FullName = dto.FullName,
+                Email = dto.Email,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
+                Role = dto.Role,
+                DepartmentId = dto.DepartmentId,
+                TeamId = dto.TeamId,
+                ManagerId = dto.ManagerId,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
             };
@@ -91,12 +89,12 @@ namespace APM.API.Services
             var user = await _context.Users.FindAsync(id);
             if (user == null) return null;
 
-            user.FullName = dto.nom;
-            user.Role = dto.role;
-            user.DepartmentId = dto.departementId;
-            user.TeamId = dto.equipeId;
-            user.ManagerId = dto.chefId;
-            user.IsActive = dto.actif;
+            user.FullName = dto.FullName;
+            user.Role = dto.Role;
+            user.DepartmentId = dto.DepartmentId;
+            user.TeamId = dto.TeamId;
+            user.ManagerId = dto.ManagerId;
+            user.IsActive = dto.IsActive;
 
             await _context.SaveChangesAsync();
             return await GetByIdAsync(id);
