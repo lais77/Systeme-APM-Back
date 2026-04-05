@@ -7,7 +7,7 @@ namespace APM.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "ADMIN")]
+    [Authorize] //feha waaleha khater bkchi [Authorize(Roles = "ADMIN,MANAGER")]
     public class ProcessesController : ControllerBase
     {
         private readonly ProcessService _processService;
