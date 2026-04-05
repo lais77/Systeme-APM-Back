@@ -70,7 +70,8 @@ builder.Services.AddHangfire(config =>
 builder.Services.AddHangfireServer();
 builder.Services.AddScoped<ActivityLogService>();
 builder.Services.AddControllers();
-
+builder.Services.AddScoped<PlanService>();
+builder.Services.AddScoped<ActionService>();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAngular", policy =>
