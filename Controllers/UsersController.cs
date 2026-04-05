@@ -7,7 +7,7 @@ namespace APM.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "ADMIN")]
+    [Authorize]
     public class UsersController : ControllerBase
     {
         private readonly UserService _userService;
@@ -29,6 +29,7 @@ namespace APM.API.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "ADMIN")]
         public async Task<IActionResult> Create([FromBody] CreateUserDto dto)
         {
             try
@@ -43,6 +44,7 @@ namespace APM.API.Controllers
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "ADMIN")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateUserDto dto)
         {
             var result = await _userService.UpdateAsync(id, dto);
@@ -50,6 +52,7 @@ namespace APM.API.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "ADMIN")]
         public async Task<IActionResult> Delete(int id)
         {
             var result = await _userService.DeleteAsync(id);
@@ -57,6 +60,7 @@ namespace APM.API.Controllers
         }
 
         [HttpPatch("{id}/desactiver")]
+        [Authorize(Roles = "ADMIN")]
         public async Task<IActionResult> Desactiver(int id)
         {
             var result = await _userService.DeleteAsync(id);

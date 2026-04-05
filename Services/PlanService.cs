@@ -1,4 +1,5 @@
 using APM.API.Data;
+using APM.API.DTOs.Actions;
 using APM.API.DTOs.Plans;
 using APM.API.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -16,25 +17,29 @@ namespace APM.API.Services
 
         public async Task<List<PlanDto>> GetAllPlansAsync()
         {
-            return await _context.ActionPlans
+            var plans = await _context.ActionPlans
                 .Include(p => p.Pilot)
                 .Include(p => p.Process)
                 .Include(p => p.Department)
                 .Include(p => p.Actions)
-                .Select(p => MapToDto(p))
+                    .ThenInclude(a => a.Responsible)
                 .ToListAsync();
+
+            return plans.Select(p => MapToDto(p)).ToList();
         }
 
         public async Task<List<PlanDto>> GetMyPlansAsync(int pilotId)
         {
-            return await _context.ActionPlans
+            var plans = await _context.ActionPlans
                 .Include(p => p.Pilot)
                 .Include(p => p.Process)
                 .Include(p => p.Department)
                 .Include(p => p.Actions)
+                    .ThenInclude(a => a.Responsible)
                 .Where(p => p.PilotId == pilotId)
-                .Select(p => MapToDto(p))
                 .ToListAsync();
+
+            return plans.Select(p => MapToDto(p)).ToList();
         }
 
         public async Task<PlanDto?> GetPlanByIdAsync(int id)
@@ -130,7 +135,30 @@ namespace APM.API.Services
             ProcessName = p.Process?.Name ?? string.Empty,
             DepartmentId = p.DepartmentId,
             DepartmentName = p.Department?.Name,
-            TotalActions = p.Actions?.Count ?? 0
+            TotalActions = p.Actions?.Count ?? 0,
+            Actions = p.Actions?.Select(a => new ActionDto
+            {
+                Id = a.Id,
+                Theme = a.Theme,
+                AnomalyDescription = a.AnomalyDescription,
+                ActionDescription = a.ActionDescription,
+                Type = a.Type,
+                Criticity = a.Criticity,
+                Cause = a.Cause,
+                Status = a.Status,
+                ProgressPercentage = a.ProgressPercentage,
+                Deadline = a.Deadline,
+                RealizationMethod = a.RealizationMethod,
+                RealizationDate = a.RealizationDate,
+                Effectiveness = a.Effectiveness,
+                EffectivenessComment = a.EffectivenessComment,
+                StarRating = a.StarRating,
+                CreatedAt = a.CreatedAt,
+                ActionPlanId = a.ActionPlanId,
+                ResponsibleId = a.ResponsibleId,
+                ResponsibleName = a.Responsible?.FullName ?? string.Empty,
+                ParentActionId = a.ParentActionId
+            }).ToList()
         };
     }
 }

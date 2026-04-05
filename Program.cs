@@ -72,6 +72,8 @@ builder.Services.AddScoped<ActivityLogService>();
 builder.Services.AddControllers();
 builder.Services.AddScoped<PlanService>();
 builder.Services.AddScoped<ActionService>();
+builder.Services.AddScoped<CommentService>();
+builder.Services.AddScoped<AttachmentService>();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAngular", policy =>

@@ -1,3 +1,5 @@
+using APM.API.DTOs.Actions;
+
 namespace APM.API.DTOs.Plans
 {
     public class PlanDto
@@ -20,6 +22,7 @@ namespace APM.API.DTOs.Plans
         public int? DepartmentId { get; set; }
         public string? DepartmentName { get; set; }
         public int TotalActions { get; set; }
+        public List<ActionDto>? Actions { get; set; }
     }
 
     public class CreatePlanDto
