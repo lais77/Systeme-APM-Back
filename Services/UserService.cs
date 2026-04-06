@@ -65,11 +65,13 @@ namespace APM.API.Services
             if (await _context.Users.AnyAsync(u => u.Email == dto.Email))
                 throw new InvalidOperationException("Email déjà utilisé.");
 
+            var motDePasse = string.IsNullOrEmpty(dto.Password) ? "Apm@2025" : dto.Password;
+
             var user = new User
             {
                 FullName = dto.FullName,
                 Email = dto.Email,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(motDePasse),
                 Role = dto.Role,
                 DepartmentId = dto.DepartmentId,
                 TeamId = dto.TeamId,
