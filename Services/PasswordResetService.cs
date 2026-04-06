@@ -39,8 +39,7 @@ namespace APM.API.Services
                 <a href='{resetLink}' style='background:#2B5FA3;color:white;padding:10px 20px;border-radius:5px;text-decoration:none'>
                     Réinitialiser mon mot de passe
                 </a>
-                <p>Ce lien expire dans 1 heure.</p>
-                <p>Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.</p>";
+                <p>Ce lien expire dans 1 heure.</p>" ;
 
             await _emailService.SendEmailAsync(user.Email, user.FullName, subject, body);
             return true;
