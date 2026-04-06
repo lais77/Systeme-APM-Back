@@ -102,6 +102,17 @@ namespace APM.API.Services
             return true;
         }
 
+        public async Task<ActionDto?> DemarrerActionAsync(int id)
+        {
+            var action = await _context.ActionItems.FindAsync(id);
+            if (action == null || action.Status != "Created") return null;
+
+            action.Status = "InProgress";
+            action.ModifiedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+            return await GetActionByIdAsync(id);
+        }
+
         public async Task<ActionDto?> SubmitActionAsync(int id, SubmitActionDto dto)
         {
             var action = await _context.ActionItems.FindAsync(id);

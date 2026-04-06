@@ -67,6 +67,14 @@ namespace APM.API.Controllers
             return Ok(new { message = "Action supprimée." });
         }
 
+        [HttpPost("api/actions/{id}/demarrer")]
+        public async Task<IActionResult> Demarrer(int id)
+        {
+            var action = await _actionService.DemarrerActionAsync(id);
+            if (action == null) return BadRequest("Action introuvable ou statut invalide.");
+            return Ok(action);
+        }
+
         [HttpPost("api/actions/{id}/submit")]
         public async Task<IActionResult> Submit(int id, [FromBody] SubmitActionDto dto)
         {
