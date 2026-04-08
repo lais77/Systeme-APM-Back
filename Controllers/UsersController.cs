@@ -1,3 +1,4 @@
+using APM.API.Data;
 using APM.API.DTOs.Admin;
 using APM.API.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -7,14 +8,16 @@ namespace APM.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize]
+    [Authorize(Roles = "ADMIN")]
     public class UsersController : ControllerBase
     {
         private readonly UserService _userService;
+        private readonly AppDbContext _context;
 
-        public UsersController(UserService userService)
+        public UsersController(UserService userService, AppDbContext context)
         {
             _userService = userService;
+            _context = context;
         }
 
         [HttpGet]
@@ -29,7 +32,6 @@ namespace APM.API.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = "ADMIN")]
         public async Task<IActionResult> Create([FromBody] CreateUserDto dto)
         {
             try
@@ -44,7 +46,6 @@ namespace APM.API.Controllers
         }
 
         [HttpPut("{id}")]
-        [Authorize(Roles = "ADMIN")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateUserDto dto)
         {
             var result = await _userService.UpdateAsync(id, dto);
@@ -52,19 +53,30 @@ namespace APM.API.Controllers
         }
 
         [HttpDelete("{id}")]
-        [Authorize(Roles = "ADMIN")]
         public async Task<IActionResult> Delete(int id)
         {
             var result = await _userService.DeleteAsync(id);
             return result ? Ok(new { message = "Utilisateur désactivé." }) : NotFound();
         }
 
+        [HttpPut("{id}/activer")]
+        public async Task<IActionResult> Activer(int id)
+        {
+            var user = await _context.Users.FindAsync(id);
+            if (user == null) return NotFound();
+            user.IsActive = true;
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "Utilisateur activé." });
+        }
+
         [HttpPatch("{id}/desactiver")]
-        [Authorize(Roles = "ADMIN")]
         public async Task<IActionResult> Desactiver(int id)
         {
-            var result = await _userService.DeleteAsync(id);
-            return result ? Ok(new { message = "Utilisateur désactivé." }) : NotFound();
+            var user = await _context.Users.FindAsync(id);
+            if (user == null) return NotFound();
+            user.IsActive = false;
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "Utilisateur désactivé." });
         }
     }
 }

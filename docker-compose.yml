@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "5203:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=Server=db;Database=APM_DB;User Id=sa;Password=Apm@2025Strong!;TrustServerCertificate=True;
+      - JwtSettings__SecretKey=APM_TIS_CIRCUITS_SECRET_KEY_2025_VERY_LONG
+      - JwtSettings__Issuer=APM.API
+      - JwtSettings__Audience=APM.Client
+      - JwtSettings__ExpirationHours=8
+      - EmailSettings__SmtpHost=smtp.gmail.com
+      - EmailSettings__SmtpPort=587
+      - EmailSettings__SmtpUser=apm.tiscircuits@gmail.com
+      - EmailSettings__SmtpPassword=jcje kagw ckhe xsro
+      - EmailSettings__FromName=APM — TIS Circuits
+      - EmailSettings__FromEmail=apm.tiscircuits@gmail.com
+    depends_on:
+      - db
+
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=Apm@2025Strong!
+    ports:
+      - "1434:1433"
+    volumes:
+      - sqldata:/var/lib/sqlserver/data
+
+volumes:
+  sqldata:
