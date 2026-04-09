@@ -54,6 +54,15 @@ namespace APM.API.Controllers
             });
         }
 
+        // POST /api/auth/logout
+        [HttpPost("logout")]
+        [Authorize]
+        public IActionResult Logout()
+        {
+            // JWT is stateless; frontend removes token locally.
+            return Ok(new { message = "Déconnexion effectuée." });
+        }
+
         // POST /api/auth/forgot-password
         [HttpPost("forgot-password")]
         [AllowAnonymous]

@@ -34,8 +34,19 @@ namespace APM.API.Controllers
             if (file == null || file.Length == 0)
                 return BadRequest("Fichier invalide.");
 
-            var attachment = await _attachmentService.UploadAsync(actionItemId, GetCurrentUserId(), file, description);
-            return Ok(attachment);
+            try
+            {
+                var attachment = await _attachmentService.UploadAsync(actionItemId, GetCurrentUserId(), file, description);
+                return Ok(attachment);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
         }
 
         [HttpDelete("api/attachments/{id}")]

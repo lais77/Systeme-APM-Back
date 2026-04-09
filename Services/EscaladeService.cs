@@ -26,7 +26,11 @@ namespace APM.API.Services
                     .ThenInclude(u => u!.Manager)
                 .Include(a => a.ActionPlan)
                     .ThenInclude(p => p.Pilot)
-                .Where(a => a.Status != "Clôturé" && a.Status != "Annulé")
+                .Where(a =>
+                    a.Status != "C" &&
+                    a.Status != "Closed" &&
+                    a.Status != "Clôturé" &&
+                    a.Status != "Annulé")
                 .ToListAsync();
 
             foreach (var action in actions)

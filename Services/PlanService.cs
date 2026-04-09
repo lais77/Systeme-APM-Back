@@ -9,10 +9,14 @@ namespace APM.API.Services
     public class PlanService
     {
         private readonly AppDbContext _context;
+        private readonly EmailService _emailService;
+        private readonly NotificationService _notificationService;
 
-        public PlanService(AppDbContext context)
+        public PlanService(AppDbContext context, EmailService emailService, NotificationService notificationService)
         {
             _context = context;
+            _emailService = emailService;
+            _notificationService = notificationService;
         }
 
         public async Task<List<PlanDto>> GetAllPlansAsync()
@@ -78,10 +82,13 @@ namespace APM.API.Services
             return (await GetPlanByIdAsync(plan.Id))!;
         }
 
-        public async Task<PlanDto?> UpdatePlanAsync(int id, UpdatePlanDto dto)
+        public async Task<PlanDto?> UpdatePlanAsync(int id, UpdatePlanDto dto, int actingUserId)
         {
             var plan = await _context.ActionPlans.FindAsync(id);
             if (plan == null) return null;
+            if (plan.Status == "Closed") return null;
+            if (!await IsPilotOrAdminAsync(plan, actingUserId))
+                throw new UnauthorizedAccessException("Seul le pilote du plan peut modifier ce plan.");
 
             if (dto.Title != null) plan.Title = dto.Title;
             if (dto.Description != null) plan.Description = dto.Description;
@@ -93,14 +100,52 @@ namespace APM.API.Services
             return await GetPlanByIdAsync(id);
         }
 
-        public async Task<bool> ClosePlanAsync(int id)
+        public async Task<bool> ClosePlanAsync(int id, int actingUserId)
         {
             var plan = await _context.ActionPlans.FindAsync(id);
             if (plan == null) return false;
+            if (!await IsPilotOrAdminAsync(plan, actingUserId))
+                throw new UnauthorizedAccessException("Seul le pilote du plan peut clôturer ce plan.");
 
             plan.Status = "Closed";
             plan.ClosedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
+            return true;
+        }
+
+        public async Task<bool> ValidatePlanAsync(int id, int actingUserId)
+        {
+            var plan = await _context.ActionPlans
+                .Include(p => p.Actions)
+                    .ThenInclude(a => a.Responsible)
+                .FirstOrDefaultAsync(p => p.Id == id);
+
+            if (plan == null) return false;
+            if (plan.Status == "Closed")
+                throw new InvalidOperationException("Impossible de valider un plan clôturé.");
+            if (!await IsPilotOrAdminAsync(plan, actingUserId))
+                throw new UnauthorizedAccessException("Seul le pilote du plan peut valider ce plan.");
+
+            plan.Status = "Validated";
+            await _context.SaveChangesAsync();
+
+            foreach (var action in plan.Actions.Where(a => a.Responsible != null))
+            {
+                var subject = $"APM — Plan validé : action à réaliser ({action.Theme})";
+                var body = $@"
+                    <h2>Plan validé</h2>
+                    <p>Bonjour {action.Responsible!.FullName},</p>
+                    <p>Le plan d'action <b>{plan.Title}</b> a été validé.</p>
+                    <p>L'action <b>{action.Theme}</b> vous est demandée avant le {action.Deadline:dd/MM/yyyy}.</p>";
+
+                await _emailService.SendEmailAsync(action.Responsible.Email, action.Responsible.FullName, subject, body);
+                await _notificationService.CreateInAppAsync(
+                    action.ResponsibleId,
+                    "Plan validé",
+                    $"Le plan \"{plan.Title}\" est validé. Action: {action.Theme}",
+                    action.Id);
+            }
+
             return true;
         }
 
@@ -160,5 +205,17 @@ namespace APM.API.Services
                 ParentActionId = a.ParentActionId
             }).ToList()
         };
+
+        private async Task<bool> IsPilotOrAdminAsync(ActionPlan plan, int actingUserId)
+        {
+            if (plan.PilotId == actingUserId) return true;
+
+            var role = await _context.Users
+                .Where(u => u.Id == actingUserId)
+                .Select(u => u.Role)
+                .FirstOrDefaultAsync();
+
+            return string.Equals(role, "ADMIN", StringComparison.OrdinalIgnoreCase);
+        }
     }
 }

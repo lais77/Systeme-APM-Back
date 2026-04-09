@@ -55,17 +55,50 @@ namespace APM.API.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdatePlanDto dto)
         {
-            var plan = await _planService.UpdatePlanAsync(id, dto);
-            if (plan == null) return NotFound();
-            return Ok(plan);
+            try
+            {
+                var plan = await _planService.UpdatePlanAsync(id, dto, GetCurrentUserId());
+                if (plan == null) return NotFound();
+                return Ok(plan);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+            }
+        }
+
+        [HttpPatch("{id}/valider")]
+        public async Task<IActionResult> Validate(int id)
+        {
+            try
+            {
+                var result = await _planService.ValidatePlanAsync(id, GetCurrentUserId());
+                if (!result) return NotFound();
+                return Ok(new { message = "Plan validé avec succès." });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+            }
         }
 
         [HttpPatch("{id}/cloturer")]
         public async Task<IActionResult> Close(int id)
         {
-            var result = await _planService.ClosePlanAsync(id);
-            if (!result) return NotFound();
-            return Ok(new { message = "Plan clôturé avec succès." });
+            try
+            {
+                var result = await _planService.ClosePlanAsync(id, GetCurrentUserId());
+                if (!result) return NotFound();
+                return Ok(new { message = "Plan clôturé avec succès." });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+            }
         }
     }
 }

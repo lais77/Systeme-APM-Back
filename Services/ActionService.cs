@@ -9,11 +9,13 @@ namespace APM.API.Services
     {
         private readonly AppDbContext _context;
         private readonly PlanService _planService;
+        private readonly NotificationService _notificationService;
 
-        public ActionService(AppDbContext context, PlanService planService)
+        public ActionService(AppDbContext context, PlanService planService, NotificationService notificationService)
         {
             _context = context;
             _planService = planService;
+            _notificationService = notificationService;
         }
 
         public async Task<List<ActionDto>> GetActionsByPlanAsync(int planId)
@@ -45,8 +47,13 @@ namespace APM.API.Services
             return action == null ? null : MapToDto(action);
         }
 
-        public async Task<ActionDto> CreateActionAsync(int planId, CreateActionDto dto)
+        public async Task<ActionDto> CreateActionAsync(int planId, CreateActionDto dto, int actingUserId)
         {
+            if (await IsPlanClosedAsync(planId))
+                throw new InvalidOperationException("Impossible d'ajouter une action à un plan clôturé.");
+            if (!await IsPilotOrAdminForPlanAsync(planId, actingUserId))
+                throw new UnauthorizedAccessException("Seul le pilote du plan peut ajouter une action.");
+
             var action = new ActionItem
             {
                 Theme = dto.Theme,
@@ -58,21 +65,28 @@ namespace APM.API.Services
                 Deadline = dto.Deadline,
                 ResponsibleId = dto.ResponsibleId,
                 ActionPlanId = planId,
-                Status = "Created",
+                Status = "P",
                 CreatedAt = DateTime.UtcNow
             };
 
             _context.ActionItems.Add(action);
             await _context.SaveChangesAsync();
+            await _context.Entry(action).Reference(a => a.Responsible).LoadAsync();
+            await _notificationService.SendActionAssignedAsync(action);
             await _planService.UpdateProgressAsync(planId);
 
             return (await GetActionByIdAsync(action.Id))!;
         }
 
-        public async Task<ActionDto?> UpdateActionAsync(int id, UpdateActionDto dto)
+        public async Task<ActionDto?> UpdateActionAsync(int id, UpdateActionDto dto, int actingUserId)
         {
             var action = await _context.ActionItems.FindAsync(id);
             if (action == null) return null;
+            if (await IsPlanClosedAsync(action.ActionPlanId)) return null;
+            if (!await IsPilotOrAdminForPlanAsync(action.ActionPlanId, actingUserId))
+                throw new UnauthorizedAccessException("Seul le pilote du plan peut modifier l'action.");
+
+            var previousResponsibleId = action.ResponsibleId;
 
             if (dto.Theme != null) action.Theme = dto.Theme;
             if (dto.ActionDescription != null) action.ActionDescription = dto.ActionDescription;
@@ -85,15 +99,25 @@ namespace APM.API.Services
 
             action.ModifiedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
+
+            if (action.ResponsibleId != previousResponsibleId)
+            {
+                await _context.Entry(action).Reference(a => a.Responsible).LoadAsync();
+                await _notificationService.SendActionAssignedAsync(action);
+            }
+
             await _planService.UpdateProgressAsync(action.ActionPlanId);
 
             return await GetActionByIdAsync(id);
         }
 
-        public async Task<bool> DeleteActionAsync(int id)
+        public async Task<bool> DeleteActionAsync(int id, int actingUserId)
         {
             var action = await _context.ActionItems.FindAsync(id);
             if (action == null) return false;
+            if (await IsPlanClosedAsync(action.ActionPlanId)) return false;
+            if (!await IsPilotOrAdminForPlanAsync(action.ActionPlanId, actingUserId))
+                throw new UnauthorizedAccessException("Seul le pilote du plan peut supprimer l'action.");
 
             var planId = action.ActionPlanId;
             _context.ActionItems.Remove(action);
@@ -102,10 +126,12 @@ namespace APM.API.Services
             return true;
         }
 
-        public async Task<ActionDto?> DemarrerActionAsync(int id)
+        public async Task<ActionDto?> DemarrerActionAsync(int id, int actingUserId)
         {
             var action = await _context.ActionItems.FindAsync(id);
-            if (action == null || action.Status != "Created") return null;
+            if (action == null || (action.Status != "Created" && action.Status != "P")) return null;
+            if (await IsPlanClosedAsync(action.ActionPlanId)) return null;
+            if (!await IsResponsibleOrAdminForActionAsync(action, actingUserId)) return null;
 
             action.Status = "InProgress";
             action.ModifiedAt = DateTime.UtcNow;
@@ -113,26 +139,31 @@ namespace APM.API.Services
             return await GetActionByIdAsync(id);
         }
 
-        public async Task<ActionDto?> SubmitActionAsync(int id, SubmitActionDto dto)
+        public async Task<ActionDto?> SubmitActionAsync(int id, SubmitActionDto dto, int actingUserId)
         {
             var action = await _context.ActionItems.FindAsync(id);
             if (action == null || action.Status != "InProgress") return null;
+            if (await IsPlanClosedAsync(action.ActionPlanId)) return null;
+            if (!await IsResponsibleOrAdminForActionAsync(action, actingUserId)) return null;
 
-            action.Status = "UnderReview";
+            action.Status = "D";
             action.RealizationMethod = dto.RealizationMethod;
-            action.RealizationDate = dto.RealizationDate;
+            action.RealizationDate = dto.RealizationDate == default ? DateTime.UtcNow : dto.RealizationDate;
             action.ModifiedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
             return await GetActionByIdAsync(id);
         }
 
-        public async Task<ActionDto?> ValidateActionAsync(int id, ValidateActionDto dto)
+        public async Task<ActionDto?> ValidateActionAsync(int id, ValidateActionDto dto, int actingUserId)
         {
             var action = await _context.ActionItems.FindAsync(id);
-            if (action == null || action.Status != "UnderReview") return null;
+            if (action == null || (action.Status != "UnderReview" && action.Status != "D")) return null;
+            if (await IsPlanClosedAsync(action.ActionPlanId)) return null;
+            if (!await IsPilotOrAdminForPlanAsync(action.ActionPlanId, actingUserId))
+                throw new UnauthorizedAccessException("Seul le pilote du plan peut valider l'action.");
 
-            action.Status = dto.IsApproved ? "Validated" : "Rejected";
+            action.Status = dto.IsApproved ? "C" : "P";
             if (!dto.IsApproved && dto.Comment != null)
                 action.EffectivenessComment = dto.Comment;
 
@@ -141,10 +172,13 @@ namespace APM.API.Services
             return await GetActionByIdAsync(id);
         }
 
-        public async Task<ActionDto?> EvaluateActionAsync(int id, EvaluateActionDto dto)
+        public async Task<ActionDto?> EvaluateActionAsync(int id, EvaluateActionDto dto, int actingUserId)
         {
             var action = await _context.ActionItems.FindAsync(id);
-            if (action == null || action.Status != "Validated") return null;
+            if (action == null || (action.Status != "Validated" && action.Status != "D" && action.Status != "UnderReview")) return null;
+            if (await IsPlanClosedAsync(action.ActionPlanId)) return null;
+            if (!await IsPilotOrAdminForPlanAsync(action.ActionPlanId, actingUserId))
+                throw new UnauthorizedAccessException("Seul le pilote du plan peut évaluer l'action.");
 
             action.Effectiveness = dto.Effectiveness;
             action.EffectivenessComment = dto.Comment;
@@ -153,7 +187,7 @@ namespace APM.API.Services
 
             if (dto.Effectiveness == "Ineffective" && dto.ReplacementAction != null)
             {
-                action.Status = "Closed";
+                action.Status = "C";
                 var replacement = new ActionItem
                 {
                     Theme = dto.ReplacementAction.Theme,
@@ -165,20 +199,50 @@ namespace APM.API.Services
                     ResponsibleId = dto.ReplacementAction.ResponsibleId,
                     ActionPlanId = action.ActionPlanId,
                     ParentActionId = action.Id,
-                    Status = "Created",
+                    Status = "P",
                     CreatedAt = DateTime.UtcNow
                 };
                 _context.ActionItems.Add(replacement);
             }
             else
             {
-                action.Status = "Closed";
+                action.Status = "C";
                 action.ProgressPercentage = 100;
             }
 
             await _context.SaveChangesAsync();
             await _planService.UpdateProgressAsync(action.ActionPlanId);
             return await GetActionByIdAsync(id);
+        }
+
+        private async Task<bool> IsPlanClosedAsync(int planId)
+        {
+            var planStatus = await _context.ActionPlans
+                .Where(p => p.Id == planId)
+                .Select(p => p.Status)
+                .FirstOrDefaultAsync();
+
+            return string.Equals(planStatus, "Closed", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task<bool> IsPilotOrAdminForPlanAsync(int planId, int userId)
+        {
+            var plan = await _context.ActionPlans
+                .Where(p => p.Id == planId)
+                .Select(p => new { p.PilotId })
+                .FirstOrDefaultAsync();
+            if (plan == null) return false;
+
+            if (plan.PilotId == userId) return true;
+            var role = await _context.Users.Where(u => u.Id == userId).Select(u => u.Role).FirstOrDefaultAsync();
+            return string.Equals(role, "ADMIN", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task<bool> IsResponsibleOrAdminForActionAsync(ActionItem action, int userId)
+        {
+            if (action.ResponsibleId == userId) return true;
+            var role = await _context.Users.Where(u => u.Id == userId).Select(u => u.Role).FirstOrDefaultAsync();
+            return string.Equals(role, "ADMIN", StringComparison.OrdinalIgnoreCase);
         }
 
         private static ActionDto MapToDto(ActionItem a) => new ActionDto

@@ -30,8 +30,19 @@ namespace APM.API.Controllers
         [HttpPost("api/actions/{actionItemId}/comments")]
         public async Task<IActionResult> Add(int actionItemId, [FromBody] CreateCommentDto dto)
         {
-            var comment = await _commentService.AddCommentAsync(actionItemId, GetCurrentUserId(), dto);
-            return Ok(comment);
+            try
+            {
+                var comment = await _commentService.AddCommentAsync(actionItemId, GetCurrentUserId(), dto);
+                return Ok(comment);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
         }
 
         [HttpDelete("api/comments/{id}")]

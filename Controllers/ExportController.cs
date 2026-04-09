@@ -24,5 +24,12 @@ namespace APM.API.Controllers
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 $"APM_Export_{DateTime.Now:yyyyMMdd}.xlsx");
         }
+
+        [HttpGet("pdf")]
+        public IActionResult ExportPdf()
+        {
+            return StatusCode(StatusCodes.Status501NotImplemented,
+                new { message = "Export PDF non implémenté côté backend. Utilisez /api/export/excel." });
+        }
     }
 }
