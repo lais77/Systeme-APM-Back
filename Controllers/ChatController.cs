@@ -1,8 +1,9 @@
-using System.Net.Http.Headers;
+// Controllers/ChatController.cs
 using System.Security.Claims;
 using System.Text.Json;
 using APM.API.Data;
 using APM.API.DTOs.Chat;
+using APM.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -14,35 +15,23 @@ namespace APM.API.Controllers
     [Authorize]
     public class ChatController : ControllerBase
     {
-        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IAIService _ai;
         private readonly AppDbContext _db;
-        private readonly IConfiguration _configuration;
         private readonly ILogger<ChatController> _logger;
 
-        public ChatController(
-            IHttpClientFactory httpClientFactory,
-            AppDbContext db,
-            IConfiguration configuration,
-            ILogger<ChatController> logger)
+        public ChatController(IAIService ai, AppDbContext db, ILogger<ChatController> logger)
         {
-            _httpClientFactory = httpClientFactory;
+            _ai = ai;
             _db = db;
-            _configuration = configuration;
             _logger = logger;
         }
 
+        // Endpoint existant : chatbot conversationnel
         [HttpPost]
         public async Task<IActionResult> Ask([FromBody] ChatRequestDto request)
         {
             if (request == null || string.IsNullOrWhiteSpace(request.Message))
                 return BadRequest(new { message = "Le message est requis." });
-
-            var apiKey = _configuration["Claude:ApiKey"];
-            if (string.IsNullOrWhiteSpace(apiKey))
-                return BadRequest(new { message = "Assistant IA non configuré (Claude:ApiKey manquante)." });
-
-            var model = _configuration["Claude:Model"] ?? "claude-sonnet-4-20250514";
-            var maxTokens = int.TryParse(_configuration["Claude:MaxTokens"], out var mt) ? mt : 1024;
 
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "";
@@ -50,65 +39,86 @@ namespace APM.API.Controllers
             var context = await BuildContextAsync(userId, userRole);
 
             var systemPrompt = $"""
-                Tu es l'assistant IA du système APM (Action Plan Management) de TIS Circuits.
-                Tu aides les utilisateurs à comprendre et gérer leurs plans d'action PDCA.
-                Réponds toujours en français, de façon concise et professionnelle.
+                Tu es Alex, l'assistant IA intelligent et sympathique du système APM 
+                de TIS Circuits. Tu es professionnel mais chaleureux, et tu t'exprimes 
+                toujours en français.
 
-                DONNÉES ACTUELLES DE L'UTILISATEUR (rôle : {userRole}) :
+                PROFIL DE L'UTILISATEUR CONNECTÉ :
+                - Rôle : {userRole}
+
+                DONNÉES EN TEMPS RÉEL :
                 {context}
 
-                Règles :
-                - Réponds uniquement à partir des données fournies ci-dessus
-                - Si une information n'est pas dans les données, dis-le clairement
-                - Ne génère jamais de fausses données
+                CE QUE TU PEUX FAIRE :
+                ✅ Répondre aux salutations et faire la conversation
+                ✅ Expliquer la méthode PDCA et les bonnes pratiques qualité
+                ✅ Analyser les plans et actions de l'utilisateur
+                ✅ Identifier les retards et alerter sur les urgences
+                ✅ Donner des conseils pour améliorer la gestion des plans
+                ✅ Répondre aux questions générales sur l'APM
+                ✅ Suggérer des actions correctives
+
+                RÈGLES :
+                - Pour les données précises (nombres, noms) : utilise uniquement les données fournies
+                - Pour les conseils, explications et conversation : réponds librement
+                - Sois concis — maximum 4-5 lignes par réponse
+                - Si tu ne sais pas quelque chose, dis-le honnêtement
+                - Ne génère jamais de fausses données chiffrées
                 """;
 
-            var payload = new ClaudeApiRequestDto
-            {
-                Model = model,
-                MaxTokens = maxTokens,
-                System = systemPrompt,
-                Messages =
-                [
-                    new ClaudeUserMessageDto { Role = "user", Content = request.Message.Trim() }
-                ]
-            };
-
-            var client = _httpClientFactory.CreateClient();
-            using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
-            httpRequest.Headers.TryAddWithoutValidation("x-api-key", apiKey);
-            httpRequest.Headers.TryAddWithoutValidation("anthropic-version", "2023-06-01");
-            httpRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            httpRequest.Content = JsonContent.Create(payload);
-
-            HttpResponseMessage response;
             try
             {
-                response = await client.SendAsync(httpRequest);
+                var reply = await _ai.AskAsync(request.Message, systemPrompt);
+                return Ok(new { reply });
             }
-            catch (Exception ex)
+            catch (HttpRequestException ex)
             {
-                _logger.LogError(ex, "Échec d'appel HTTP vers l'API Claude.");
-                return StatusCode(502, new { message = "Impossible de joindre le service Claude." });
+                _logger.LogError(ex, "Erreur appel IA.");
+                return StatusCode(502, new { message = ex.Message });
             }
-
-            if (!response.IsSuccessStatusCode)
-            {
-                var errBody = await response.Content.ReadAsStringAsync();
-                _logger.LogWarning("Claude API {Status}: {Body}", response.StatusCode, errBody);
-                return StatusCode((int)response.StatusCode, new { message = "Erreur API Claude.", detail = errBody });
-            }
-
-            var result = await response.Content.ReadFromJsonAsync<ClaudeMessageResponseDto>(
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-
-            var text = result?.Content?.FirstOrDefault(c => c.Type == "text")?.Text;
-            if (string.IsNullOrEmpty(text))
-                return StatusCode(502, new { message = "Réponse Claude vide ou inattendue." });
-
-            return Ok(new { reply = text });
         }
 
+        // Nouvel endpoint : suggestions IA pour un plan
+        [HttpGet("plans/{planId:int}/suggestions")]
+        public async Task<IActionResult> GetSuggestions(int planId)
+        {
+            try
+            {
+                var suggestions = await _ai.SuggestActionsAsync(planId);
+                return Ok(new { suggestions });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogError(ex, "Erreur suggestions IA.");
+                return StatusCode(502, new { message = ex.Message });
+            }
+        }
+
+        // Nouvel endpoint : résumé de clôture IA
+        [HttpGet("plans/{planId:int}/resume")]
+        public async Task<IActionResult> GetResume(int planId)
+        {
+            try
+            {
+                var resume = await _ai.SummarizePlanAsync(planId);
+                return Ok(new { resume });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogError(ex, "Erreur résumé IA.");
+                return StatusCode(502, new { message = ex.Message });
+            }
+        }
+
+        // BuildContextAsync — identique à l'original, inchangé
         private async Task<string> BuildContextAsync(int userId, string role)
         {
             var today = DateTime.UtcNow.Date;
@@ -119,18 +129,13 @@ namespace APM.API.Controllers
                 var actions = await _db.ActionItems
                     .AsNoTracking()
                     .Where(a => a.ResponsibleId == userId)
-                    .Select(a => new
-                    {
-                        a.Id,
-                        a.Theme,
-                        a.ActionDescription,
-                        a.Status,
-                        a.Deadline,
-                        EnRetard = a.Status != "Clôturé" && a.Status != "Annulé" && a.Deadline.Date < today
+                    .Select(a => new {
+                        a.Id, a.Theme, a.ActionDescription, a.Status, a.Deadline,
+                        EnRetard = a.Status != "Clôturé" && a.Status != "Annulé"
+                                   && a.Deadline.Date < today
                     })
                     .ToListAsync();
-
-                return $"Actions assignées (responsable) : {JsonSerializer.Serialize(actions)}";
+                return $"Actions assignées : {JsonSerializer.Serialize(actions)}";
             }
 
             if (roleUpper == "MANAGER")
@@ -138,36 +143,35 @@ namespace APM.API.Controllers
                 var plans = await _db.ActionPlans
                     .AsNoTracking()
                     .Where(p => p.PilotId == userId)
-                    .Select(p => new
-                    {
-                        p.Id,
-                        p.Title,
-                        p.Status,
+                    .Select(p => new {
+                        p.Id, p.Title, p.Status,
                         TotalActions = p.Actions.Count,
                         ActionsEnRetard = p.Actions.Count(a =>
-                            a.Status != "Clôturé" && a.Status != "Annulé" && a.Deadline.Date < today)
+                            a.Status != "Clôturé" && a.Status != "Annulé"
+                            && a.Deadline.Date < today)
                     })
                     .ToListAsync();
-
                 return $"Plans pilotés : {JsonSerializer.Serialize(plans)}";
             }
 
-            if (roleUpper == "ADMIN" || roleUpper == "AUDITEUR")
+            if (roleUpper is "ADMIN" or "AUDITEUR")
             {
-                var summary = new
-                {
-                    totalPlans = await _db.ActionPlans.CountAsync(),
-                    totalActions = await _db.ActionItems.CountAsync(),
-                    actionsEnCours = await _db.ActionItems.CountAsync(a => a.Status == "InProgress"),
-                    actionsCloturees = await _db.ActionItems.CountAsync(a => a.Status == "Clôturé"),
-                    actionsEnRetard = await _db.ActionItems.CountAsync(a =>
-                        a.Status != "Clôturé" && a.Status != "Annulé" && a.Deadline.Date < today)
+                var summary = new {
+                    totalPlans    = await _db.ActionPlans.CountAsync(),
+                    totalActions  = await _db.ActionItems.CountAsync(),
+                    actionsEnCours = await _db.ActionItems
+                        .CountAsync(a => a.Status == "InProgress"),
+                    actionsCloturees = await _db.ActionItems
+                        .CountAsync(a => a.Status == "Clôturé"),
+                    actionsEnRetard = await _db.ActionItems
+                        .CountAsync(a => a.Status != "Clôturé"
+                                      && a.Status != "Annulé"
+                                      && a.Deadline.Date < today)
                 };
-
-                return $"Vue synthétique (tous les plans / actions) : {JsonSerializer.Serialize(summary)}";
+                return $"Vue synthétique : {JsonSerializer.Serialize(summary)}";
             }
 
-            return JsonSerializer.Serialize(new { message = "Rôle non reconnu pour le contexte métier.", role });
+            return JsonSerializer.Serialize(new { message = "Rôle non reconnu.", role });
         }
     }
 }

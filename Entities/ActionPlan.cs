@@ -8,6 +8,7 @@ namespace APM.API.Entities
         public string? Objective { get; set; }
         public string Priority { get; set; } = "Medium";    // Critical, High, Medium, Low
         public string Status { get; set; } = "Draft";       // Draft, Validated, InProgress, Closed
+        public string Type { get; set; } = "Mono"; // Mono ou Multi
         public DateTime StartDate { get; set; }
         public DateTime DueDate { get; set; }
         public double ProgressPercentage { get; set; } = 0;

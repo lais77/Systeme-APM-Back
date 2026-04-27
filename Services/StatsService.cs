@@ -13,16 +13,31 @@ namespace APM.API.Services
             _context = context;
         }
 
+        private bool IsClosedStatus(string status)
+        {
+            return status == "Clôturé" || status == "Closed" || status == "C";
+        }
+
+        private bool IsActiveStatus(string status)
+        {
+            return status == "InProgress" || status == "D" || status == "UnderReview" || status == "Validated";
+        }
+
+        private bool IsPlannedStatus(string status)
+        {
+            return status == "P" || status == "Created" || status == "Assigned";
+        }
+
         public async Task<GlobalStatsDto> GetGlobalStatsAsync()
         {
             var today = DateTime.UtcNow.Date;
 
             var totalPlans = await _context.ActionPlans.CountAsync();
             var totalActions = await _context.ActionItems.CountAsync();
-            var enCours = await _context.ActionItems.CountAsync(a => a.Status == "InProgress");
-            var cloturees = await _context.ActionItems.CountAsync(a => a.Status == "Clôturé");
+            var enCours = await _context.ActionItems.CountAsync(a => IsActiveStatus(a.Status));
+            var cloturees = await _context.ActionItems.CountAsync(a => IsClosedStatus(a.Status));
             var enRetard = await _context.ActionItems.CountAsync(a =>
-                a.Status != "Clôturé" && a.Status != "Annulé" && a.Deadline.Date < today);
+                !IsClosedStatus(a.Status) && a.Status != "Annulé" && a.Deadline.Date < today);
             var efficaces = await _context.ActionItems.CountAsync(a => a.Effectiveness == "Efficace");
 
             return new GlobalStatsDto
@@ -55,7 +70,7 @@ namespace APM.API.Services
                     .Where(a => planIds.Contains(a.ActionPlanId))
                     .ToListAsync();
 
-                var cloturees = actions.Count(a => a.Status == "Clôturé");
+                var cloturees = actions.Count(a => IsClosedStatus(a.Status));
 
                 result.Add(new StatsByDepartmentDto
                 {
@@ -83,7 +98,7 @@ namespace APM.API.Services
                     totalActions = u.ManagedPlans.SelectMany(p => p.Actions).Count(),
                     tauxCloture = u.ManagedPlans.SelectMany(p => p.Actions).Count() > 0
                         ? Math.Round((double)u.ManagedPlans.SelectMany(p => p.Actions)
-                            .Count(a => a.Status == "Clôturé") /
+                            .Count(a => IsClosedStatus(a.Status)) /
                             u.ManagedPlans.SelectMany(p => p.Actions).Count() * 100, 1)
                         : 0
                 }).ToListAsync();
@@ -110,9 +125,9 @@ namespace APM.API.Services
                 .Where(a => planIds.Contains(a.ActionPlanId))
                 .ToListAsync();
 
-            var enCours = actions.Count(a => a.Status == "InProgress");
-            var cloturees = actions.Count(a => a.Status == "Clôturé");
-            var enRetard = actions.Count(a => a.Status != "Clôturé" && a.Status != "Annulé" && a.Deadline < end);
+            var enCours = actions.Count(a => IsActiveStatus(a.Status));
+            var cloturees = actions.Count(a => IsClosedStatus(a.Status));
+            var enRetard = actions.Count(a => !IsClosedStatus(a.Status) && a.Status != "Annulé" && a.Deadline < end);
             var efficaces = actions.Count(a => a.Effectiveness == "Efficace");
 
             return new GlobalStatsDto
@@ -132,11 +147,11 @@ namespace APM.API.Services
         {
             var today = DateTime.UtcNow.Date;
             var totalActions = await _context.ActionItems.CountAsync();
-            var cloturees = await _context.ActionItems.CountAsync(a => a.Status == "Clôturé");
-            var enCours = await _context.ActionItems.CountAsync(a => a.Status == "InProgress");
+            var cloturees = await _context.ActionItems.CountAsync(a => IsClosedStatus(a.Status));
+            var enCours = await _context.ActionItems.CountAsync(a => IsActiveStatus(a.Status));
             var efficaces = await _context.ActionItems.CountAsync(a => a.Effectiveness == "Efficace");
             var enRetard = await _context.ActionItems.CountAsync(a =>
-                a.Status != "Clôturé" && a.Status != "Annulé" && a.Deadline.Date < today);
+                !IsClosedStatus(a.Status) && a.Status != "Annulé" && a.Deadline.Date < today);
 
             var totalActionsAvecDeadline = await _context.ActionItems.CountAsync(a => a.Deadline != null);
             var aTemps = totalActionsAvecDeadline > 0
@@ -163,12 +178,12 @@ namespace APM.API.Services
                 month = month,
                 year = year,
                 actionsCloturees = actions.Count(a =>
-                    a.Status == "Clôturé" &&
+                    IsClosedStatus(a.Status) &&
                     a.RealizationDate.HasValue &&
                     a.RealizationDate.Value.Month == month &&
                     a.RealizationDate.Value.Year == year),
                 actionsEnRetard = actions.Count(a =>
-                    a.Status != "Clôturé" &&
+                    !IsClosedStatus(a.Status) &&
                     a.Deadline.Month == month &&
                     a.Deadline.Year == year &&
                     a.Deadline.Date < today)

@@ -48,8 +48,15 @@ namespace APM.API.Controllers
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreatePlanDto dto)
         {
-            var plan = await _planService.CreatePlanAsync(dto, GetCurrentUserId());
-            return CreatedAtAction(nameof(GetById), new { id = plan.Id }, plan);
+            try
+            {
+                var plan = await _planService.CreatePlanAsync(dto, GetCurrentUserId());
+                return CreatedAtAction(nameof(GetById), new { id = plan.Id }, plan);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
         }
 
         [HttpPut("{id}")]
@@ -99,6 +106,17 @@ namespace APM.API.Controllers
             {
                 return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
             }
+        }
+
+        [HttpDelete("all")]
+        [Authorize(Roles = "ADMIN")]
+        public async Task<IActionResult> DeleteAll([FromQuery] bool confirm = false)
+        {
+            if (!confirm)
+                return BadRequest(new { message = "Ajoutez ?confirm=true pour confirmer la suppression globale." });
+
+            var deletedCount = await _planService.DeleteAllPlansAsync();
+            return Ok(new { message = $"{deletedCount} plan(s) supprimé(s)." });
         }
     }
 }

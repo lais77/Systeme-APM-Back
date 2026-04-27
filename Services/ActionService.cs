@@ -2,6 +2,7 @@ using APM.API.Data;
 using APM.API.DTOs.Actions;
 using APM.API.Entities;
 using Microsoft.EntityFrameworkCore;
+using System.Text;
 
 namespace APM.API.Services
 {
@@ -10,12 +11,14 @@ namespace APM.API.Services
         private readonly AppDbContext _context;
         private readonly PlanService _planService;
         private readonly NotificationService _notificationService;
+        private readonly EmailService _emailService;
 
-        public ActionService(AppDbContext context, PlanService planService, NotificationService notificationService)
+        public ActionService(AppDbContext context, PlanService planService, NotificationService notificationService, EmailService emailService)
         {
             _context = context;
             _planService = planService;
             _notificationService = notificationService;
+            _emailService = emailService;
         }
 
         public async Task<List<ActionDto>> GetActionsByPlanAsync(int planId)
@@ -83,19 +86,50 @@ namespace APM.API.Services
             var action = await _context.ActionItems.FindAsync(id);
             if (action == null) return null;
             if (await IsPlanClosedAsync(action.ActionPlanId)) return null;
-            if (!await IsPilotOrAdminForPlanAsync(action.ActionPlanId, actingUserId))
-                throw new UnauthorizedAccessException("Seul le pilote du plan peut modifier l'action.");
 
             var previousResponsibleId = action.ResponsibleId;
+            var modifications = new List<string>();
 
-            if (dto.Theme != null) action.Theme = dto.Theme;
-            if (dto.ActionDescription != null) action.ActionDescription = dto.ActionDescription;
-            if (dto.Type != null) action.Type = dto.Type;
-            if (dto.Criticity != null) action.Criticity = dto.Criticity;
-            if (dto.Cause != null) action.Cause = dto.Cause;
-            if (dto.Deadline.HasValue) action.Deadline = dto.Deadline.Value;
-            if (dto.ResponsibleId.HasValue) action.ResponsibleId = dto.ResponsibleId.Value;
-            if (dto.ProgressPercentage.HasValue) action.ProgressPercentage = dto.ProgressPercentage.Value;
+            if (dto.Theme != null && dto.Theme != action.Theme)
+            {
+                action.Theme = dto.Theme;
+                modifications.Add("theme");
+            }
+            if (dto.ActionDescription != null && dto.ActionDescription != action.ActionDescription)
+            {
+                action.ActionDescription = dto.ActionDescription;
+                modifications.Add("description");
+            }
+            if (dto.Type != null && dto.Type != action.Type)
+            {
+                action.Type = dto.Type;
+                modifications.Add("type");
+            }
+            if (dto.Criticity != null && dto.Criticity != action.Criticity)
+            {
+                action.Criticity = dto.Criticity;
+                modifications.Add("criticite");
+            }
+            if (dto.Cause != null && dto.Cause != action.Cause)
+            {
+                action.Cause = dto.Cause;
+                modifications.Add("cause");
+            }
+            if (dto.Deadline.HasValue && dto.Deadline.Value != action.Deadline)
+            {
+                action.Deadline = dto.Deadline.Value;
+                modifications.Add("echeance");
+            }
+            if (dto.ResponsibleId.HasValue && dto.ResponsibleId.Value != action.ResponsibleId)
+            {
+                action.ResponsibleId = dto.ResponsibleId.Value;
+                modifications.Add("responsable");
+            }
+            if (dto.ProgressPercentage.HasValue && dto.ProgressPercentage.Value != action.ProgressPercentage)
+            {
+                action.ProgressPercentage = dto.ProgressPercentage.Value;
+                modifications.Add("avancement");
+            }
 
             action.ModifiedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
@@ -105,6 +139,9 @@ namespace APM.API.Services
                 await _context.Entry(action).Reference(a => a.Responsible).LoadAsync();
                 await _notificationService.SendActionAssignedAsync(action);
             }
+
+            if (modifications.Count > 0)
+                await NotifyActionUpdatedAsync(action, actingUserId, modifications);
 
             await _planService.UpdateProgressAsync(action.ActionPlanId);
 
@@ -270,5 +307,48 @@ namespace APM.API.Services
             ResponsibleName = a.Responsible?.FullName ?? string.Empty,
             ParentActionId = a.ParentActionId
         };
+
+        private async Task NotifyActionUpdatedAsync(ActionItem action, int actingUserId, List<string> modifications)
+        {
+            var actor = await _context.Users
+                .Where(u => u.Id == actingUserId)
+                .Select(u => u.FullName)
+                .FirstOrDefaultAsync() ?? "Un utilisateur";
+
+            var plan = await _context.ActionPlans.FirstOrDefaultAsync(p => p.Id == action.ActionPlanId);
+            if (plan == null) return;
+
+            var recipientIds = new List<int>();
+            if (action.ResponsibleId != actingUserId) recipientIds.Add(action.ResponsibleId);
+            if (plan.PilotId != actingUserId) recipientIds.Add(plan.PilotId);
+
+            var details = string.Join(", ", modifications.Distinct());
+            foreach (var recipientId in recipientIds.Distinct())
+            {
+                await _notificationService.CreateInAppAsync(
+                    recipientId,
+                    "Action modifiee",
+                    $"{actor} a modifie l'action \"{action.Theme}\" ({details}).",
+                    action.Id);
+            }
+
+            if (action.Deadline.Date < DateTime.UtcNow.Date)
+            {
+                var users = await _context.Users
+                    .Where(u => recipientIds.Distinct().Contains(u.Id))
+                    .ToListAsync();
+
+                var subject = $"APM — Relance retard: {action.Theme}";
+                var bodyBuilder = new StringBuilder();
+                bodyBuilder.Append($"<h2>Action en retard</h2>");
+                bodyBuilder.Append($"<p>L'action <b>{action.Theme}</b> est en retard depuis le {action.Deadline:dd/MM/yyyy}.</p>");
+                bodyBuilder.Append($"<p>Merci de prendre les actions necessaires rapidement.</p>");
+
+                foreach (var user in users)
+                {
+                    await _emailService.SendEmailAsync(user.Email, user.FullName, subject, bodyBuilder.ToString());
+                }
+            }
+        }
     }
 }

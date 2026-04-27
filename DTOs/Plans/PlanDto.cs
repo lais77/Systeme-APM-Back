@@ -10,6 +10,7 @@ namespace APM.API.DTOs.Plans
         public string? Objective { get; set; }
         public string Priority { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
         public DateTime StartDate { get; set; }
         public DateTime DueDate { get; set; }
         public double ProgressPercentage { get; set; }
@@ -31,6 +32,7 @@ namespace APM.API.DTOs.Plans
         public string? Description { get; set; }
         public string? Objective { get; set; }
         public string Priority { get; set; } = "Medium";
+        public string Type { get; set; } = "Mono";
         public DateTime StartDate { get; set; }
         public DateTime DueDate { get; set; }
         public int ProcessId { get; set; }
@@ -43,6 +45,7 @@ namespace APM.API.DTOs.Plans
         public string? Description { get; set; }
         public string? Objective { get; set; }
         public string? Priority { get; set; }
+        public string? Type { get; set; }
         public DateTime? DueDate { get; set; }
     }
 }

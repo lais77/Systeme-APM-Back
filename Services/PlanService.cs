@@ -61,15 +61,18 @@ namespace APM.API.Services
 
         public async Task<PlanDto> CreatePlanAsync(CreatePlanDto dto, int pilotId)
         {
+            var resolvedProcessId = await ResolveProcessIdAsync(dto);
+
             var plan = new ActionPlan
             {
                 Title = dto.Title,
                 Description = dto.Description,
                 Objective = dto.Objective,
                 Priority = dto.Priority,
+                Type = dto.Type,
                 StartDate = dto.StartDate,
                 DueDate = dto.DueDate,
-                ProcessId = dto.ProcessId,
+                ProcessId = resolvedProcessId,
                 DepartmentId = dto.DepartmentId,
                 PilotId = pilotId,
                 Status = "InProgress",
@@ -87,16 +90,16 @@ namespace APM.API.Services
             var plan = await _context.ActionPlans.FindAsync(id);
             if (plan == null) return null;
             if (plan.Status == "Closed") return null;
-            if (!await IsPilotOrAdminAsync(plan, actingUserId))
-                throw new UnauthorizedAccessException("Seul le pilote du plan peut modifier ce plan.");
 
             if (dto.Title != null) plan.Title = dto.Title;
             if (dto.Description != null) plan.Description = dto.Description;
             if (dto.Objective != null) plan.Objective = dto.Objective;
             if (dto.Priority != null) plan.Priority = dto.Priority;
+            if (dto.Type != null) plan.Type = dto.Type;
             if (dto.DueDate.HasValue) plan.DueDate = dto.DueDate.Value;
 
             await _context.SaveChangesAsync();
+            await NotifyPlanUpdatedAsync(plan, actingUserId);
             return await GetPlanByIdAsync(id);
         }
 
@@ -149,6 +152,16 @@ namespace APM.API.Services
             return true;
         }
 
+        public async Task<int> DeleteAllPlansAsync()
+        {
+            var total = await _context.ActionPlans.CountAsync();
+            if (total == 0) return 0;
+
+            _context.ActionPlans.RemoveRange(_context.ActionPlans);
+            await _context.SaveChangesAsync();
+            return total;
+        }
+
         public async Task UpdateProgressAsync(int planId)
         {
             var plan = await _context.ActionPlans
@@ -169,6 +182,7 @@ namespace APM.API.Services
             Objective = p.Objective,
             Priority = p.Priority,
             Status = p.Status,
+            Type = p.Type,
             StartDate = p.StartDate,
             DueDate = p.DueDate,
             ProgressPercentage = p.ProgressPercentage,
@@ -216,6 +230,74 @@ namespace APM.API.Services
                 .FirstOrDefaultAsync();
 
             return string.Equals(role, "ADMIN", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task<int> ResolveProcessIdAsync(CreatePlanDto dto)
+        {
+            // 1) ProcessId fourni et valide
+            if (dto.ProcessId > 0)
+            {
+                var exists = await _context.Processes.AnyAsync(p => p.Id == dto.ProcessId);
+                if (exists) return dto.ProcessId;
+            }
+
+            // 2) Fallback sur DepartmentId
+            if (dto.DepartmentId.HasValue && dto.DepartmentId.Value > 0)
+            {
+                var processWithSameId = await _context.Processes
+                    .FirstOrDefaultAsync(p => p.Id == dto.DepartmentId.Value);
+                if (processWithSameId != null) return processWithSameId.Id;
+
+                var dept = await _context.Departments
+                    .FirstOrDefaultAsync(d => d.Id == dto.DepartmentId.Value);
+
+                if (dept != null)
+                {
+                    var processByName = await _context.Processes.FirstOrDefaultAsync(p =>
+                        p.Name.ToLower() == dept.Name.ToLower());
+
+                    if (processByName != null) return processByName.Id;
+
+                    // 3) Creation automatique du process equivalent au departement
+                    var autoProcess = new Process
+                    {
+                        Name = dept.Name,
+                        Description = dept.Description,
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    _context.Processes.Add(autoProcess);
+                    await _context.SaveChangesAsync();
+                    return autoProcess.Id;
+                }
+            }
+
+            throw new InvalidOperationException("Processus/departement invalide pour la creation du plan.");
+        }
+
+        private async Task NotifyPlanUpdatedAsync(ActionPlan plan, int actingUserId)
+        {
+            var actor = await _context.Users
+                .Where(u => u.Id == actingUserId)
+                .Select(u => u.FullName)
+                .FirstOrDefaultAsync() ?? "Un utilisateur";
+
+            var recipientIds = await _context.ActionItems
+                .Where(a => a.ActionPlanId == plan.Id && a.ResponsibleId != actingUserId)
+                .Select(a => a.ResponsibleId)
+                .Distinct()
+                .ToListAsync();
+
+            if (plan.PilotId != actingUserId)
+                recipientIds.Add(plan.PilotId);
+
+            foreach (var userId in recipientIds.Distinct())
+            {
+                await _notificationService.CreateInAppAsync(
+                    userId,
+                    "Plan modifie",
+                    $"{actor} a modifie le plan \"{plan.Title}\".");
+            }
         }
     }
 }

@@ -3,12 +3,13 @@ using APM.API.DTOs.Admin;
 using APM.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace APM.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "ADMIN")]
+    [Authorize]
     public class UsersController : ControllerBase
     {
         private readonly UserService _userService;
@@ -21,10 +22,31 @@ namespace APM.API.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "ADMIN")]
         public async Task<IActionResult> GetAll() =>
             Ok(await _userService.GetAllAsync());
 
+        [HttpGet("responsables")]
+        [Authorize]
+        public async Task<IActionResult> GetResponsables()
+        {
+            var users = await _context.Users
+                .Where(u => u.IsActive && u.Role == "RESPONSABLE")
+                .OrderBy(u => u.FullName)
+                .Select(u => new
+                {
+                    id = u.Id,
+                    fullName = u.FullName,
+                    email = u.Email,
+                    role = u.Role
+                })
+                .ToListAsync();
+
+            return Ok(users);
+        }
+
         [HttpGet("{id}")]
+        [Authorize(Roles = "ADMIN")]
         public async Task<IActionResult> GetById(int id)
         {
             var user = await _userService.GetByIdAsync(id);
@@ -32,6 +54,7 @@ namespace APM.API.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "ADMIN")]
         public async Task<IActionResult> Create([FromBody] CreateUserDto dto)
         {
             try
@@ -46,6 +69,7 @@ namespace APM.API.Controllers
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "ADMIN")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateUserDto dto)
         {
             var result = await _userService.UpdateAsync(id, dto);
@@ -53,6 +77,7 @@ namespace APM.API.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "ADMIN")]
         public async Task<IActionResult> Delete(int id)
         {
             var result = await _userService.DeleteAsync(id);
@@ -60,6 +85,7 @@ namespace APM.API.Controllers
         }
 
         [HttpPut("{id}/activer")]
+        [Authorize(Roles = "ADMIN")]
         public async Task<IActionResult> Activer(int id)
         {
             var user = await _context.Users.FindAsync(id);
@@ -70,6 +96,7 @@ namespace APM.API.Controllers
         }
 
         [HttpPatch("{id}/desactiver")]
+        [Authorize(Roles = "ADMIN")]
         public async Task<IActionResult> Desactiver(int id)
         {
             var user = await _context.Users.FindAsync(id);
