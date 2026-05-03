@@ -80,13 +80,27 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAngular", policy =>
     {
-        policy.WithOrigins("http://localhost:4200")
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+        policy.WithOrigins(
+            "http://localhost:4200",
+            "http://localhost",
+            "http://localhost:80",
+            "http://frontend"
+        )
+        .AllowAnyHeader()
+        .AllowAnyMethod();
     });
 });
 
 var app = builder.Build();
+
+// Auto-migration au démarrage
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+    await APM.API.Data.DbSeeder.SeedAsync(db);
+}
+
 
 // CORS en premier !
 app.UseCors("AllowAngular");
@@ -106,11 +120,5 @@ app.UseSwaggerUi(c =>
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-
-using (var scope = app.Services.CreateScope())
-{
-    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await APM.API.Data.DbSeeder.SeedAsync(context);
-}
 
 app.Run();

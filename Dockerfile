@@ -7,12 +7,9 @@ WORKDIR /src
 COPY ["APM.API.csproj", "."]
 RUN dotnet restore "./APM.API.csproj"
 COPY . .
-RUN dotnet build "./APM.API.csproj" -c Release -o /app/build
-
-FROM build AS publish
 RUN dotnet publish "./APM.API.csproj" -c Release -o /app/publish
 
 FROM base AS final
 WORKDIR /app
-COPY --from=publish /app/publish .
+COPY --from=build /app/publish .
 ENTRYPOINT ["dotnet", "APM.API.dll"]
