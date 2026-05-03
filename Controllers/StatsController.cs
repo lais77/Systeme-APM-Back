@@ -47,5 +47,21 @@ namespace APM.API.Controllers
             var result = await _statsService.GetPlansCritiquesAsync();
             return Ok(result);
         }
+
+        [HttpGet("activite-recente")]
+        public async Task<IActionResult> GetActiviteRecente()
+        {
+            // Note: Normalement ActivityLogService devrait gérer ça, mais on peut le faire ici via le contexte si injecté
+            // ou via un nouveau service. Pour faire simple et respecter la demande :
+            // On suppose que StatsService ou le controller a accès au DbContext (ici StatsController n'a que StatsService).
+            // Cependant, la demande montre le code utilisant _context.
+            // Je vais donc ajouter la méthode au StatsService pour rester propre, ou modifier le controller.
+            // Le user a mis le code dans le controller dans son exemple.
+            // Je vais vérifier si StatsController a accès à AppDbContext. 
+            // D'après ma lecture précédente, il n'a que StatsService.
+            
+            // Correction : je vais mettre la logique dans StatsService et l'appeler depuis le controller.
+            return Ok(await _statsService.GetActiviteRecenteAsync());
+        }
     }
 }

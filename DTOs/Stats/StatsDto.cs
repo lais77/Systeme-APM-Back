@@ -12,22 +12,7 @@ namespace APM.API.DTOs.Stats
         public double tauxEfficacite { get; set; }
     }
 
-    public class StatsByDepartmentDto
-    {
-        public string departmentName { get; set; } = string.Empty;
-        public int totalPlans { get; set; }
-        public int totalActions { get; set; }
-        public int actionsCloturees { get; set; }
-        public double tauxCloture { get; set; }
-    }
 
-    public class StatsByPilotDto
-    {
-        public string pilotName { get; set; } = string.Empty;
-        public int totalPlans { get; set; }
-        public int totalActions { get; set; }
-        public double tauxCloture { get; set; }
-    }
 
     public class MonthlyStatsDto
     {

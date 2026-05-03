@@ -21,16 +21,15 @@ namespace APM.API.Services
         {
             var today = DateTime.UtcNow.Date;
 
+            // Tous les statuts non clôturés et non annulés
+            var statusExclus = new[] { "C", "Clôturé", "Closed", "Annulé", "Cancelled" };
+
             var actions = await _context.ActionItems
                 .Include(a => a.Responsible)
                     .ThenInclude(u => u!.Manager)
                 .Include(a => a.ActionPlan)
                     .ThenInclude(p => p.Pilot)
-                .Where(a =>
-                    a.Status != "C" &&
-                    a.Status != "Closed" &&
-                    a.Status != "Clôturé" &&
-                    a.Status != "Annulé")
+                .Where(a => !statusExclus.Contains(a.Status))
                 .ToListAsync();
 
             foreach (var action in actions)

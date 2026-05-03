@@ -7,7 +7,9 @@ namespace APM.API.DTOs.Stats
         public string status { get; set; } = "";
         public string priority { get; set; } = "";
         public string pilotName { get; set; } = "";
+        public string departmentName { get; set; } = "";
         public int actionsEnRetard { get; set; }
+        public int totalActions { get; set; }
         public DateTime dateEcheance { get; set; }
     }
 }

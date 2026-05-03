@@ -13,95 +13,97 @@ namespace APM.API.Services
             _context = context;
         }
 
-        private bool IsClosedStatus(string status)
-        {
-            return status == "Clôturé" || status == "Closed" || status == "C";
-        }
+        // Helpers centralisés — toute la logique statuts ici
+        private static readonly string[] ClosedStatuses = { "Clôturé", "Closed", "C" };
+        private static readonly string[] ActiveStatuses = { "InProgress", "D", "UnderReview", "Validated", "P", "Created", "Assigned" };
+        private static readonly string[] CancelledStatuses = { "Annulé", "Cancelled" };
 
-        private bool IsActiveStatus(string status)
-        {
-            return status == "InProgress" || status == "D" || status == "UnderReview" || status == "Validated";
-        }
-
-        private bool IsPlannedStatus(string status)
-        {
-            return status == "P" || status == "Created" || status == "Assigned";
-        }
+        private bool IsClosedStatus(string status) => ClosedStatuses.Contains(status);
+        private bool IsActiveStatus(string status) => ActiveStatuses.Contains(status);
+        private bool IsCancelledStatus(string status) => CancelledStatuses.Contains(status);
 
         public async Task<GlobalStatsDto> GetGlobalStatsAsync()
         {
             var today = DateTime.UtcNow.Date;
-
-            var totalPlans = await _context.ActionPlans.CountAsync();
             var totalActions = await _context.ActionItems.CountAsync();
-            var enCours = await _context.ActionItems.CountAsync(a => IsActiveStatus(a.Status));
-            var cloturees = await _context.ActionItems.CountAsync(a => IsClosedStatus(a.Status));
-            var enRetard = await _context.ActionItems.CountAsync(a =>
-                !IsClosedStatus(a.Status) && a.Status != "Annulé" && a.Deadline.Date < today);
-            var efficaces = await _context.ActionItems.CountAsync(a => a.Effectiveness == "Efficace");
+
+            var cloturees = await _context.ActionItems
+                .CountAsync(a => ClosedStatuses.Contains(a.Status));
+
+            var enRetard = await _context.ActionItems
+                .CountAsync(a => 
+                    !ClosedStatuses.Contains(a.Status) && 
+                    !CancelledStatuses.Contains(a.Status) &&
+                    a.Deadline.Date < today);
+
+            var enCours = await _context.ActionItems
+                .CountAsync(a => ActiveStatuses.Contains(a.Status));
+
+            var efficaces = await _context.ActionItems
+                .CountAsync(a => a.Effectiveness == "Efficace");
 
             return new GlobalStatsDto
             {
-                totalPlans = totalPlans,
+                totalPlans = await _context.ActionPlans.CountAsync(),
                 totalActions = totalActions,
                 actionsEnCours = enCours,
-                actionsEnRetard = enRetard,
                 actionsCloturees = cloturees,
+                actionsEnRetard = enRetard,
                 tauxRealisation = totalActions > 0 ? Math.Round((double)enCours / totalActions * 100, 1) : 0,
                 tauxCloture = totalActions > 0 ? Math.Round((double)cloturees / totalActions * 100, 1) : 0,
                 tauxEfficacite = cloturees > 0 ? Math.Round((double)efficaces / cloturees * 100, 1) : 0
             };
         }
 
-        public async Task<List<StatsByDepartmentDto>> GetStatsByDepartmentAsync()
+        public async Task<List<StatsByDeptDto>> GetStatsByDepartmentAsync()
         {
-            var departments = await _context.Departments.ToListAsync();
-            var result = new List<StatsByDepartmentDto>();
+            var today = DateTime.UtcNow.Date;
 
-            foreach (var d in departments)
-            {
-                var plans = await _context.ActionPlans
-                    .Where(p => p.DepartmentId == d.Id)
-                    .ToListAsync();
-
-                var planIds = plans.Select(p => p.Id).ToList();
-
-                var actions = await _context.ActionItems
-                    .Where(a => planIds.Contains(a.ActionPlanId))
-                    .ToListAsync();
-
-                var cloturees = actions.Count(a => IsClosedStatus(a.Status));
-
-                result.Add(new StatsByDepartmentDto
+            return await _context.ActionPlans
+                .Include(p => p.Department)
+                .Include(p => p.Actions)
+                .GroupBy(p => new { 
+                    DeptId = p.DepartmentId ?? 0, 
+                    DeptName = p.Department != null ? p.Department.Name : "Sans département" 
+                })
+                .Select(g => new StatsByDeptDto
                 {
-                    departmentName = d.Name,
-                    totalPlans = plans.Count,
-                    totalActions = actions.Count,
-                    actionsCloturees = cloturees,
-                    tauxCloture = actions.Count > 0
-                        ? Math.Round((double)cloturees / actions.Count * 100, 1)
-                        : 0
-                });
-            }
-
-            return result;
+                    departmentId = g.Key.DeptId,
+                    departmentName = g.Key.DeptName,
+                    totalPlans = g.Count(),
+                    totalActions = g.Sum(p => p.Actions.Count),
+                    actionsEnRetard = g.Sum(p => p.Actions.Count(a =>
+                        !ClosedStatuses.Contains(a.Status) &&
+                        a.Deadline.Date < today)),
+                    actionsCloturees = g.Sum(p => p.Actions.Count(a =>
+                        ClosedStatuses.Contains(a.Status)))
+                })
+                .ToListAsync();
         }
 
         public async Task<List<StatsByPilotDto>> GetStatsByPilotAsync()
         {
-            return await _context.Users
-                .Where(u => u.Role == "MANAGER")
-                .Select(u => new StatsByPilotDto
+            var today = DateTime.UtcNow.Date;
+
+            return await _context.ActionPlans
+                .Include(p => p.Pilot)
+                .Include(p => p.Actions)
+                .GroupBy(p => new { 
+                    PilotId = p.PilotId, 
+                    PilotName = p.Pilot.FullName 
+                })
+                .Select(g => new StatsByPilotDto
                 {
-                    pilotName = u.FullName,
-                    totalPlans = u.ManagedPlans.Count(),
-                    totalActions = u.ManagedPlans.SelectMany(p => p.Actions).Count(),
-                    tauxCloture = u.ManagedPlans.SelectMany(p => p.Actions).Count() > 0
-                        ? Math.Round((double)u.ManagedPlans.SelectMany(p => p.Actions)
-                            .Count(a => IsClosedStatus(a.Status)) /
-                            u.ManagedPlans.SelectMany(p => p.Actions).Count() * 100, 1)
-                        : 0
-                }).ToListAsync();
+                    pilotId = g.Key.PilotId,
+                    pilotName = g.Key.PilotName,
+                    totalPlans = g.Count(),
+                    actionsEnRetard = g.Sum(p => p.Actions.Count(a =>
+                        !ClosedStatuses.Contains(a.Status) &&
+                        a.Deadline.Date < today)),
+                    actionsCloturees = g.Sum(p => p.Actions.Count(a =>
+                        ClosedStatuses.Contains(a.Status)))
+                })
+                .ToListAsync();
         }
 
         public async Task<GlobalStatsDto> GetStatsByPeriodAsync(DateTime? startDate, DateTime? endDate)
@@ -125,9 +127,9 @@ namespace APM.API.Services
                 .Where(a => planIds.Contains(a.ActionPlanId))
                 .ToListAsync();
 
-            var enCours = actions.Count(a => IsActiveStatus(a.Status));
-            var cloturees = actions.Count(a => IsClosedStatus(a.Status));
-            var enRetard = actions.Count(a => !IsClosedStatus(a.Status) && a.Status != "Annulé" && a.Deadline < end);
+            var enCours = actions.Count(a => ActiveStatuses.Contains(a.Status));
+            var cloturees = actions.Count(a => ClosedStatuses.Contains(a.Status));
+            var enRetard = actions.Count(a => !ClosedStatuses.Contains(a.Status) && !CancelledStatuses.Contains(a.Status) && a.Deadline < end);
             var efficaces = actions.Count(a => a.Effectiveness == "Efficace");
 
             return new GlobalStatsDto
@@ -147,11 +149,11 @@ namespace APM.API.Services
         {
             var today = DateTime.UtcNow.Date;
             var totalActions = await _context.ActionItems.CountAsync();
-            var cloturees = await _context.ActionItems.CountAsync(a => IsClosedStatus(a.Status));
-            var enCours = await _context.ActionItems.CountAsync(a => IsActiveStatus(a.Status));
+            var cloturees = await _context.ActionItems.CountAsync(a => ClosedStatuses.Contains(a.Status));
+            var enCours = await _context.ActionItems.CountAsync(a => ActiveStatuses.Contains(a.Status));
             var efficaces = await _context.ActionItems.CountAsync(a => a.Effectiveness == "Efficace");
             var enRetard = await _context.ActionItems.CountAsync(a =>
-                !IsClosedStatus(a.Status) && a.Status != "Annulé" && a.Deadline.Date < today);
+                !ClosedStatuses.Contains(a.Status) && !CancelledStatuses.Contains(a.Status) && a.Deadline.Date < today);
 
             var totalActionsAvecDeadline = await _context.ActionItems.CountAsync(a => a.Deadline != null);
             var aTemps = totalActionsAvecDeadline > 0
@@ -178,12 +180,13 @@ namespace APM.API.Services
                 month = month,
                 year = year,
                 actionsCloturees = actions.Count(a =>
-                    IsClosedStatus(a.Status) &&
+                    ClosedStatuses.Contains(a.Status) &&
                     a.RealizationDate.HasValue &&
                     a.RealizationDate.Value.Month == month &&
                     a.RealizationDate.Value.Year == year),
                 actionsEnRetard = actions.Count(a =>
-                    !IsClosedStatus(a.Status) &&
+                    !ClosedStatuses.Contains(a.Status) &&
+                    !CancelledStatuses.Contains(a.Status) &&
                     a.Deadline.Month == month &&
                     a.Deadline.Year == year &&
                     a.Deadline.Date < today)
@@ -197,22 +200,24 @@ namespace APM.API.Services
             var plans = await _context.ActionPlans
                 .Include(p => p.Actions)
                 .Include(p => p.Pilot)
-                .Where(p => p.Status != "Closed" && p.Status != "Annulé")
+                .Include(p => p.Department)
+                .Where(p => !ClosedStatuses.Contains(p.Status) && !CancelledStatuses.Contains(p.Status))
                 .Select(p => new
                 {
                     p.Id,
                     p.Title,
                     p.Status,
                     p.Priority,
-                    DueDate = p.DueDate,
+                    p.DueDate,
                     PilotName = p.Pilot.FullName,
+                    DepartmentName = p.Department != null ? p.Department.Name : "—",
                     ActionsEnRetard = p.Actions.Count(a =>
-                        a.Status != "Closed" &&
-                        a.Status != "Clôturé" &&
-                        a.Status != "Annulé" &&
-                        a.Deadline.Date < today)
+                        !ClosedStatuses.Contains(a.Status) &&
+                        !CancelledStatuses.Contains(a.Status) &&
+                        a.Deadline.Date < today),
+                    TotalActions = p.Actions.Count
                 })
-                .Where(p => p.ActionsEnRetard > 0 || p.DueDate.Date < today)
+                .Where(p => p.ActionsEnRetard > 0 || p.DueDate.Date <= today.AddDays(3))
                 .OrderByDescending(p => p.ActionsEnRetard)
                 .Take(5)
                 .ToListAsync();
@@ -224,9 +229,28 @@ namespace APM.API.Services
                 status = p.Status,
                 priority = p.Priority,
                 pilotName = p.PilotName,
+                departmentName = p.DepartmentName,
                 actionsEnRetard = p.ActionsEnRetard,
+                totalActions = p.TotalActions,
                 dateEcheance = p.DueDate
             }).ToList();
+        }
+
+        public async Task<List<object>> GetActiviteRecenteAsync()
+        {
+            return await _context.ActivityLogs
+                .Include(a => a.User)
+                .OrderByDescending(a => a.CreatedAt)
+                .Take(10)
+                .Select(a => new {
+                    id = a.Id,
+                    action = a.Action,
+                    entityType = a.EntityType,
+                    userName = a.User.FullName,
+                    createdAt = a.CreatedAt
+                })
+                .Cast<object>()
+                .ToListAsync();
         }
     }
 }

@@ -75,7 +75,7 @@ namespace APM.API.Services
                 ProcessId = resolvedProcessId,
                 DepartmentId = dto.DepartmentId,
                 PilotId = pilotId,
-                Status = "InProgress",
+                Status = "Draft",   // ← était "InProgress"
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -124,24 +124,36 @@ namespace APM.API.Services
                 .FirstOrDefaultAsync(p => p.Id == id);
 
             if (plan == null) return false;
-            if (plan.Status == "Closed")
-                throw new InvalidOperationException("Impossible de valider un plan clôturé.");
+            if (plan.Status != "Draft")
+                throw new InvalidOperationException("Seul un plan en Draft peut être validé.");
+            
             if (!await IsPilotOrAdminAsync(plan, actingUserId))
                 throw new UnauthorizedAccessException("Seul le pilote du plan peut valider ce plan.");
 
-            plan.Status = "Validated";
+            plan.Status = "InProgress";
             await _context.SaveChangesAsync();
 
+            // Notifier chaque responsable
             foreach (var action in plan.Actions.Where(a => a.Responsible != null))
             {
-                var subject = $"APM — Plan validé : action à réaliser ({action.Theme})";
-                var body = $@"
-                    <h2>Plan validé</h2>
-                    <p>Bonjour {action.Responsible!.FullName},</p>
-                    <p>Le plan d'action <b>{plan.Title}</b> a été validé.</p>
-                    <p>L'action <b>{action.Theme}</b> vous est demandée avant le {action.Deadline:dd/MM/yyyy}.</p>";
+                await _emailService.SendEmailAsync(
+                    action.Responsible!.Email,
+                    action.Responsible.FullName,
+                    $"[APM] Nouvelle action assignée : {action.Theme}",
+                    $"""
+                        Bonjour {action.Responsible.FullName},
 
-                await _emailService.SendEmailAsync(action.Responsible.Email, action.Responsible.FullName, subject, body);
+                        Le plan d'action "{plan.Title}" vient d'être validé.
+                        Vous avez une action à réaliser :
+
+                        Thème     : {action.Theme}
+                        Délai     : {action.Deadline:dd/MM/yyyy}
+                        Criticité : {action.Criticity}
+
+                        Connectez-vous à l'APM pour consulter les détails.
+                        """
+                );
+                
                 await _notificationService.CreateInAppAsync(
                     action.ResponsibleId,
                     "Plan validé",

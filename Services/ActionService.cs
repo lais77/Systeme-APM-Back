@@ -33,8 +33,11 @@ namespace APM.API.Services
         public async Task<List<ActionDto>> GetMyActionsAsync(int userId)
         {
             return await _context.ActionItems
-                .Include(a => a.Responsible)
-                .Where(a => a.ResponsibleId == userId)
+                .Include(a => a.ActionPlan)
+                .Where(a => 
+                    a.ResponsibleId == userId &&
+                    a.ActionPlan.Status != "Draft")   // ← exclure Draft
+                .OrderBy(a => a.Deadline)
                 .Select(a => MapToDto(a))
                 .ToListAsync();
         }
@@ -68,7 +71,8 @@ namespace APM.API.Services
                 Deadline = dto.Deadline,
                 ResponsibleId = dto.ResponsibleId,
                 ActionPlanId = planId,
-                Status = "P",
+                Status = "Created",   // ← statut unifié
+                ProgressPercentage = 0,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -83,11 +87,17 @@ namespace APM.API.Services
 
         public async Task<ActionDto?> UpdateActionAsync(int id, UpdateActionDto dto, int actingUserId)
         {
-            var action = await _context.ActionItems.FindAsync(id);
+            var action = await _context.ActionItems
+                .Include(a => a.Responsible)
+                .Include(a => a.ActionPlan)
+                    .ThenInclude(p => p.Pilot)
+                .FirstOrDefaultAsync(a => a.Id == id);
+
             if (action == null) return null;
             if (await IsPlanClosedAsync(action.ActionPlanId)) return null;
 
             var previousResponsibleId = action.ResponsibleId;
+            var ancienDelai = action.Deadline;
             var modifications = new List<string>();
 
             if (dto.Theme != null && dto.Theme != action.Theme)
@@ -133,6 +143,29 @@ namespace APM.API.Services
 
             action.ModifiedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
+
+            // Notifier le responsable si modifié par quelqu'un d'autre
+            if (action.Responsible != null && action.ResponsibleId != actingUserId && modifications.Count > 0)
+            {
+                var pilotName = action.ActionPlan?.Pilot?.FullName ?? "Le pilote";
+                await _emailService.SendEmailAsync(
+                    action.Responsible.Email,
+                    action.Responsible.FullName,
+                    $"[APM] Modification de votre action : {action.Theme}",
+                    $"""
+                        Bonjour {action.Responsible.FullName},
+
+                        {pilotName} a modifié votre action dans le plan "{action.ActionPlan?.Title}".
+
+                        Action    : {action.Theme}
+                        {(dto.Deadline.HasValue && dto.Deadline != ancienDelai 
+                            ? $"Nouveau délai : {dto.Deadline:dd/MM/yyyy} (ancien : {ancienDelai:dd/MM/yyyy})" 
+                            : "")}
+
+                        Connectez-vous à l'APM pour voir les détails mis à jour.
+                        """
+                );
+            }
 
             if (action.ResponsibleId != previousResponsibleId)
             {
