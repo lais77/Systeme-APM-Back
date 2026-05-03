@@ -40,5 +40,12 @@ namespace APM.API.Controllers
         [HttpGet("performance")]
         public async Task<IActionResult> GetPerformance() =>
             Ok(await _statsService.GetPerformanceStatsAsync());
+
+        [HttpGet("plans-critiques")]
+        public async Task<IActionResult> GetPlansCritiques()
+        {
+            var result = await _statsService.GetPlansCritiquesAsync();
+            return Ok(result);
+        }
     }
 }

@@ -189,5 +189,44 @@ namespace APM.API.Services
                     a.Deadline.Date < today)
             }).ToList();
         }
+
+        public async Task<List<PlanCritiqueDto>> GetPlansCritiquesAsync()
+        {
+            var today = DateTime.UtcNow.Date;
+
+            var plans = await _context.ActionPlans
+                .Include(p => p.Actions)
+                .Include(p => p.Pilot)
+                .Where(p => p.Status != "Closed" && p.Status != "Annulé")
+                .Select(p => new
+                {
+                    p.Id,
+                    p.Title,
+                    p.Status,
+                    p.Priority,
+                    DueDate = p.DueDate,
+                    PilotName = p.Pilot.FullName,
+                    ActionsEnRetard = p.Actions.Count(a =>
+                        a.Status != "Closed" &&
+                        a.Status != "Clôturé" &&
+                        a.Status != "Annulé" &&
+                        a.Deadline.Date < today)
+                })
+                .Where(p => p.ActionsEnRetard > 0 || p.DueDate.Date < today)
+                .OrderByDescending(p => p.ActionsEnRetard)
+                .Take(5)
+                .ToListAsync();
+
+            return plans.Select(p => new PlanCritiqueDto
+            {
+                id = p.Id,
+                title = p.Title,
+                status = p.Status,
+                priority = p.Priority,
+                pilotName = p.PilotName,
+                actionsEnRetard = p.ActionsEnRetard,
+                dateEcheance = p.DueDate
+            }).ToList();
+        }
     }
 }
