@@ -21,18 +21,18 @@ namespace APM.API.Services
         {
             var today = DateTime.UtcNow.Date;
 
-            // Tous les statuts non clôturés et non annulés
-            var statusExclus = new[] { "C", "Clôturé", "Closed", "Annulé", "Cancelled" };
+            // Statuts qui sont en attente de réalisation par le responsable (non clôturés, non annulés, non soumis)
+            var statusEnCours = new[] { "Created", "P", "InProgress", "Assigned" };
 
-            var actions = await _context.ActionItems
+            var actionsEnCours = await _context.ActionItems
                 .Include(a => a.Responsible)
                     .ThenInclude(u => u!.Manager)
                 .Include(a => a.ActionPlan)
                     .ThenInclude(p => p.Pilot)
-                .Where(a => !statusExclus.Contains(a.Status))
+                .Where(a => statusEnCours.Contains(a.Status))
                 .ToListAsync();
 
-            foreach (var action in actions)
+            foreach (var action in actionsEnCours)
             {
                 var diff = (today - action.Deadline.Date).Days;
 
@@ -40,6 +40,28 @@ namespace APM.API.Services
                 else if (diff == 1) await SendEscaladeN1Async(action);
                 else if (diff == 2) await SendEscaladeN2Async(action);
                 else if (diff >= 3) await SendEscaladeN3Async(action);
+            }
+
+            // Statuts en attente de validation par le pilote
+            var statusAValider = new[] { "D", "UnderReview", "Validated" };
+            
+            var actionsAValider = await _context.ActionItems
+                .Include(a => a.ActionPlan)
+                    .ThenInclude(p => p.Pilot)
+                .Where(a => statusAValider.Contains(a.Status))
+                .ToListAsync();
+
+            var actionsParPilote = actionsAValider
+                .Where(a => a.ActionPlan?.Pilot != null)
+                .GroupBy(a => a.ActionPlan.Pilot);
+
+            foreach (var group in actionsParPilote)
+            {
+                var pilot = group.Key;
+                var count = group.Count();
+                var subject = $"APM — Actions en attente de validation";
+                var body = $"<h2>Vérification de l'efficacité</h2><p>Bonjour {pilot.FullName},</p><p>Vous avez <b>{count}</b> action(s) en attente de validation de l'efficacité.</p><p>Merci de vous connecter à l'APM pour les évaluer.</p>";
+                await _emailService.SendEmailAsync(pilot.Email, pilot.FullName, subject, body);
             }
         }
 
