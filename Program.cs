@@ -80,14 +80,24 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAngular", policy =>
     {
-        policy.WithOrigins(
-            "http://localhost:4200",
-            "http://localhost",
-            "http://localhost:80",
-            "http://frontend"
-        )
-        .AllowAnyHeader()
-        .AllowAnyMethod();
+        var allowed = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
+        if (allowed != null && allowed.Length > 0)
+        {
+            policy.WithOrigins(allowed)
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        }
+        else
+        {
+            policy.WithOrigins(
+                "http://localhost:4200",
+                "http://localhost",
+                "http://localhost:80",
+                "http://frontend"
+            )
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+        }
     });
 });
 

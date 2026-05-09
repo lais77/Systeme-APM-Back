@@ -29,5 +29,8 @@ namespace APM.API.Entities
 
         // Un plan contient plusieurs actions
         public ICollection<ActionItem> Actions { get; set; } = new List<ActionItem>();
+
+        // Pour le type "Multi", on peut avoir plusieurs co-pilotes
+        public ICollection<User> CoPilots { get; set; } = new List<User>();
     }
 }

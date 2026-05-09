@@ -24,6 +24,14 @@ namespace APM.API.DTOs.Plans
         public string? DepartmentName { get; set; }
         public int TotalActions { get; set; }
         public List<ActionDto>? Actions { get; set; }
+        public List<UserSummaryDto>? CoPilots { get; set; }
+    }
+
+    public class UserSummaryDto
+    {
+        public int Id { get; set; }
+        public string FullName { get; set; } = string.Empty;
+        public string? DepartmentName { get; set; }
     }
 
     public class CreatePlanDto
@@ -37,6 +45,7 @@ namespace APM.API.DTOs.Plans
         public DateTime DueDate { get; set; }
         public int ProcessId { get; set; }
         public int? DepartmentId { get; set; }
+        public List<int>? CoPilotIds { get; set; }
     }
 
     public class UpdatePlanDto

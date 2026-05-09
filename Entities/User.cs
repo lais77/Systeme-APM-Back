@@ -31,5 +31,6 @@ namespace APM.API.Entities
         public ICollection<ActionItem> AssignedActions { get; set; } = new List<ActionItem>();
         public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
         public ICollection<ActivityLog> ActivityLogs { get; set; } = new List<ActivityLog>();
+        public ICollection<ActionPlan> CoManagedPlans { get; set; } = new List<ActionPlan>();
     }
 }

@@ -95,6 +95,11 @@ namespace APM.API.Data
                       .WithMany()
                       .HasForeignKey(e => e.DepartmentId)
                       .OnDelete(DeleteBehavior.SetNull);
+
+                // Many-to-Many pour les co-pilotes
+                entity.HasMany(e => e.CoPilots)
+                      .WithMany(e => e.CoManagedPlans)
+                      .UsingEntity(j => j.ToTable("ActionPlanCoPilots"));
             });
 
             // === ACTION ITEM ===

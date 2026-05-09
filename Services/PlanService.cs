@@ -23,6 +23,7 @@ namespace APM.API.Services
         {
             var plans = await _context.ActionPlans
                 .Include(p => p.Pilot)
+                .Include(p => p.CoPilots)
                 .Include(p => p.Process)
                 .Include(p => p.Department)
                 .Include(p => p.Actions)
@@ -36,11 +37,12 @@ namespace APM.API.Services
         {
             var plans = await _context.ActionPlans
                 .Include(p => p.Pilot)
+                .Include(p => p.CoPilots)
                 .Include(p => p.Process)
                 .Include(p => p.Department)
                 .Include(p => p.Actions)
                     .ThenInclude(a => a.Responsible)
-                .Where(p => p.PilotId == pilotId)
+                .Where(p => p.PilotId == pilotId || p.CoPilots.Any(cp => cp.Id == pilotId))
                 .ToListAsync();
 
             return plans.Select(p => MapToDto(p)).ToList();
@@ -50,6 +52,7 @@ namespace APM.API.Services
         {
             var plan = await _context.ActionPlans
                 .Include(p => p.Pilot)
+                .Include(p => p.CoPilots)
                 .Include(p => p.Process)
                 .Include(p => p.Department)
                 .Include(p => p.Actions)
@@ -80,6 +83,19 @@ namespace APM.API.Services
             };
 
             _context.ActionPlans.Add(plan);
+
+            // Ajouter les co-pilotes si Type == "Multi"
+            if (dto.Type == "Multi" && dto.CoPilotIds?.Any() == true)
+            {
+                var coPilots = await _context.Users
+                    .Where(u => dto.CoPilotIds.Contains(u.Id))
+                    .ToListAsync();
+                foreach (var cp in coPilots)
+                {
+                    plan.CoPilots.Add(cp);
+                }
+            }
+
             await _context.SaveChangesAsync();
 
             return (await GetPlanByIdAsync(plan.Id))!;
@@ -207,6 +223,12 @@ namespace APM.API.Services
             DepartmentId = p.DepartmentId,
             DepartmentName = p.Department?.Name,
             TotalActions = p.Actions?.Count ?? 0,
+            CoPilots = p.CoPilots?.Select(cp => new UserSummaryDto 
+            { 
+                Id = cp.Id, 
+                FullName = cp.FullName,
+                DepartmentName = cp.Department?.Name 
+            }).ToList(),
             Actions = p.Actions?.Select(a => new ActionDto
             {
                 Id = a.Id,
