@@ -131,4 +131,34 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
+// Health Check endpoint — Monitoring APM
+app.MapGet("/health", async (AppDbContext db) =>
+{
+    try
+    {
+        var dbOk = await db.Database.CanConnectAsync();
+
+        return Results.Ok(new
+        {
+            status = dbOk ? "Healthy" : "Degraded",
+            database = dbOk ? "Connected" : "Unreachable",
+            hangfire = "Running",
+            environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Unknown",
+            timestamp = DateTime.UtcNow,
+            version = "2.1.0",
+            application = "APM — TIS Circuits"
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new
+        {
+            status = "Unhealthy",
+            database = "Error",
+            error = ex.Message,
+            timestamp = DateTime.UtcNow
+        }, statusCode: 503);
+    }
+}).AllowAnonymous();
+
 app.Run();
