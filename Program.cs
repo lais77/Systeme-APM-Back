@@ -9,7 +9,10 @@ using Hangfire;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddApplicationInsightsTelemetry(builder.Configuration);
+builder.Services.AddApplicationInsightsTelemetry(options =>
+{
+    options.ConnectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+});
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(
