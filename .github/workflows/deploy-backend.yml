@@ -25,8 +25,9 @@ jobs:
 
       - name: Build and push Backend
         run: |
-          docker build -t acrapmtis.azurecr.io/apm-backend:latest .
+          docker build -t acrapmtis.azurecr.io/apm-backend:latest -t acrapmtis.azurecr.io/apm-backend:${{ github.sha }} .
           docker push acrapmtis.azurecr.io/apm-backend:latest
+          docker push acrapmtis.azurecr.io/apm-backend:${{ github.sha }}
 
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v2
